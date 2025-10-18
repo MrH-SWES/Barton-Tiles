@@ -128,6 +128,9 @@
     // Touch-friendly snapping: slightly larger magnet on coarse pointers
     const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
 
+    // Seam insertion capture width (bigger target on touch)
+    const SEAM_CAPTURE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
+
     // Drag thresholds (tighter for mouse/pen, looser for touch)
     function dragThresholdFor(e) { return (e && e.pointerType === 'touch') ? 12 : 6; }
 
@@ -230,6 +233,50 @@
       while (R + 1 < row.length && Math.abs(row[R].x + TILE_SIZE - row[R + 1].x) <= 2) R++;
 
       return row.slice(L, R + 1);
+    }
+
+    // ====== SEAM INSERTION HELPERS ======
+    // Find a seam between two contiguous tiles near a drop point.
+    function findSeamNear(dropX, dropY) {
+      const row = tiles
+        .filter(t => Math.abs(t.y - dropY) < TILE_SIZE / 2)
+        .sort((a,b)=>a.x - b.x);
+
+      for (let i = 0; i < row.length - 1; i++) {
+        const L = row[i], R = row[i+1];
+        if (!areFlush(L, R)) continue;
+        const seamX = L.x + TILE_SIZE;
+        if (Math.abs(dropX - seamX) <= SEAM_CAPTURE) {
+          return { left: L, right: R, seamX, rowY: L.y };
+        }
+      }
+      return null;
+    }
+
+    // Insert a single tile at a seam and shift the right side.
+    function insertAtSeam(newTileData, seam) {
+      const { right, rowY } = seam;
+
+      // shift right side of the seam by one tile width
+      const rightSide = tiles
+        .filter(t => Math.abs(t.y - rowY) < TILE_SIZE / 2 && t.x >= right.x)
+        .sort((a,b)=>a.x - b.x);
+
+      rightSide.forEach(t => { t.x += TILE_SIZE; });
+
+      // place the new tile into the gap
+      const newTile = {
+        id: Date.now() + Math.random(),
+        text: newTileData.text,
+        color: newTileData.color,
+        x: right.x - TILE_SIZE,
+        y: rowY,
+        groupId: null
+      };
+      tiles.push(newTile);
+
+      // regroup the row so it becomes a single chain
+      recomputeGroupsAround(rowY);
     }
 
     // ====== AUDIO (placeholder: speech synthesis) ======
@@ -390,7 +437,6 @@
 
     // ====== POINTER HANDLERS ======
     function onPointerStart(e, text, color, source) {
-      // ignore secondary touches; capture the pointer so we keep events if finger leaves element
       if (e.isPrimary === false) return;
       e.preventDefault();
       e.stopPropagation();
@@ -518,6 +564,19 @@
         const dropY = e.clientY - paneRect.top  - dragOffset.y;
 
         if (draggedTile.sourceType === 'tray') {
+          // Try seam insertion first
+          const seam = findSeamNear(dropX, dropY);
+          if (seam) {
+            insertAtSeam({ text: draggedTile.text, color: draggedTile.color }, seam);
+            draggedTile = null;
+            draggedGroup = [];
+            dragStartRowY = null;
+            clearDragVisual();
+            renderWordPane();
+            return;
+          }
+
+          // fallback to normal snap
           const nearby = findNearbyTiles(dropX, dropY, null);
           let finalX = dropX, finalY = dropY, groupId = null;
           if (nearby.length > 0) {
@@ -530,6 +589,28 @@
           recomputeGroupsAround(finalY);
         } else {
           if (draggedGroup.length > 0) {
+            // If we're moving a single tile, allow seam insertion.
+            if (draggedGroup.length === 1) {
+              const seam = findSeamNear(dropX, dropY);
+              if (seam) {
+                const only = draggedGroup[0];
+                // remove from old spot and regroup its origin row
+                const originY = only.y;
+                tiles = tiles.filter(t => t.id !== only.id);
+                if (dragStartRowY !== null) recomputeGroupsAround(originY);
+
+                insertAtSeam({ text: only.text, color: only.color }, seam);
+
+                draggedTile = null;
+                draggedGroup = [];
+                dragStartRowY = null;
+                clearDragVisual();
+                renderWordPane();
+                return;
+              }
+            }
+
+            // Otherwise: move the whole selected subgroup with snap-to-unit
             const main = draggedGroup.find(gt => gt.id === draggedTile.id);
             const mainDropX = e.clientX - paneRect.left - (draggedTile.startX - main.x);
             const mainDropY = e.clientY - paneRect.top  - (draggedTile.startY - main.y);
@@ -567,8 +648,9 @@
         // Dropped outside pane: delete dragged group and regroup origin row
         if (draggedGroup.length > 0) {
           const ids = new Set(draggedGroup.map(t => t.id));
+          const originY = draggedGroup[0].y;
           tiles = tiles.filter(t => !ids.has(t.id));
-          if (dragStartRowY !== null) recomputeGroupsAround(dragStartRowY);
+          if (dragStartRowY !== null) recomputeGroupsAround(originY);
         }
       }
 
