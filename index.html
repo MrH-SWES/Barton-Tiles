@@ -33,7 +33,13 @@
     .tile.purple { background-color: #a78bfa; }
 
     /* Drag ghosts use transforms for smooth GPU movement */
-    .tile.dragging { opacity: 0.9; position: fixed; z-index: 1000; pointer-events: none; will-change: transform; }
+    .tile.dragging {
+      opacity: 0.9;
+      position: fixed;
+      z-index: 1000;
+      pointer-events: none;   /* important on mobile */
+      will-change: transform;
+    }
 
     .alphabet-section { border-bottom: 2px solid #9ca3af; padding: 12px; }
     .lesson-selector-bar { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 8px; background-color: #d1d5db; border-radius: 4px; margin-bottom: 12px; }
@@ -121,8 +127,7 @@
       </div>
     </div>
   </div>
-
-  <script>
+<script>
     // ====== CONFIG ======
     const TILE_SIZE = 60;
 
@@ -175,13 +180,6 @@
     let gesture = null;             // tap vs drag
     let dragStartRowY = null;       // row y at drag start
 
-    // (RAF throttle kept for future use, but not used for ghosts now)
-    let rafId = null;
-    function requestVisualUpdate(fn) {
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => { rafId = null; fn(); });
-    }
-
     // ====== UTIL ======
     function getFontSize(text) {
       if (text.length <= 2) return '24px';
@@ -206,9 +204,8 @@
         let j = i + 1;
         while (j < row.length && areFlush(row[j-1], row[j])) j++;
         const seg = row.slice(i, j);
-        if (seg.length === 1) {
-          seg[0].groupId = null;
-        } else {
+        if (seg.length === 1) seg[0].groupId = null;
+        else {
           const gid = seg[0].groupId || seg[0].id;
           for (const t of seg) t.groupId = gid;
         }
@@ -237,7 +234,6 @@
     }
 
     // ====== SEAM INSERTION HELPERS ======
-    // Find a seam between two contiguous tiles near a drop point.
     function findSeamNear(dropX, dropY) {
       const row = tiles
         .filter(t => Math.abs(t.y - dropY) < TILE_SIZE / 2)
@@ -254,7 +250,6 @@
       return null;
     }
 
-    // Insert a single tile at a seam and shift the right side.
     function insertAtSeam(newTileData, seam) {
       const { right, rowY } = seam;
 
@@ -387,7 +382,7 @@
           d.elem.classList.remove('hidden');
           d.tiles.forEach(text => d.container.appendChild(createTile(text, d.color, 'tray')));
         } else {
-          d.elem.classList.add('hidden');
+d.elem.classList.add('hidden');
           d.container.classList.remove('open');
           const arrow = d.elem.querySelector('.arrow');
           if (arrow) arrow.textContent = '▼';
@@ -441,7 +436,11 @@
       if (e.isPrimary === false) return;
       e.preventDefault();
       e.stopPropagation();
-      // Removed setPointerCapture to avoid losing events when DOM re-renders
+
+      // Restore capture now that we DON'T re-render at drag start
+      if (e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+      }
 
       const targetRect = e.currentTarget.getBoundingClientRect();
       const startX = e.clientX;
@@ -467,7 +466,7 @@
         if (!gesture.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
           gesture.moved = true;
           beginDrag(gesture, targetRect, dx, dy);
-          // NOTE: no renderWordPane() here; keep DOM stable so ghosts draw
+          // do NOT call renderWordPane() here
         }
         if (gesture.moved) handleMove(ev);
       };
@@ -532,8 +531,7 @@
       }
 
       dragOffset = { x: startX - targetRect.left, y: startY - targetRect.top };
-      // Paint ghosts immediately
-      updateDragVisual();
+      updateDragVisual(); // paint ghosts immediately
     }
 
     function handleMove(e) {
@@ -543,8 +541,7 @@
       draggedTile.x = e.clientX;
       draggedTile.y = e.clientY;
 
-      // Paint ghosts immediately
-      updateDragVisual();
+      updateDragVisual(); // paint ghosts immediately
     }
 
     function handleEnd(e) {
@@ -678,9 +675,14 @@
           ghost.className = `tile ${tile.color} dragging`;
           ghost.textContent = tile.text;
           ghost.style.fontSize = getFontSize(tile.text);
+
+          // Anchor and move with transform
+          ghost.style.left = '0px';
+          ghost.style.top  = '0px';
           const gx = tile.x + dx + paneRect.left;
           const gy = tile.y + dy + paneRect.top;
           ghost.style.transform = `translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+
           ghost.dataset.dragging = 'true';
           document.body.appendChild(ghost);
         });
@@ -689,9 +691,14 @@
         ghost.className = `tile ${draggedTile.color} dragging`;
         ghost.textContent = draggedTile.text;
         ghost.style.fontSize = getFontSize(draggedTile.text);
+
+        // Anchor and move with transform
+        ghost.style.left = '0px';
+        ghost.style.top  = '0px';
         const gx = draggedTile.x - dragOffset.x;
         const gy = draggedTile.y - dragOffset.y;
         ghost.style.transform = `translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+
         ghost.dataset.dragging = 'true';
         document.body.appendChild(ghost);
       }
@@ -700,8 +707,7 @@
     function clearDragVisual() {
       document.querySelectorAll('[data-dragging="true"]').forEach(el => el.remove());
     }
-
-    // ====== HELPERS ======
+// ====== HELPERS ======
     function isVowelYInScope() {
       const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
       if (selectedLevel < 6) return false;
