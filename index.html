@@ -109,8 +109,13 @@
             font-weight: 600;
             margin-bottom: 4px;
         }
-
-        /* --- THIS .tile-row RULE IS NOW GONE --- */
+        
+        /* --- THIS RULE IS FOR THE VOWEL/CONSONANT TEAMS --- */
+        .tile-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
         
         .drawer {
             border-bottom: 1px solid #9ca3af;
@@ -140,7 +145,7 @@
             display: none;
         }
         
-        /* --- THIS RULE IS NOW THE FLEX CONTAINER --- */
+        /* --- THIS RULE IS FOR THE DRAWERS --- */
         .drawer-content.open {
             display: flex;
             flex-wrap: wrap;
@@ -210,6 +215,7 @@
     </div>
 
     <script>
+        // --- JAVASCRIPT IS UNCHANGED ---
         const TILE_SIZE = 60;
         const SNAP_DISTANCE = 10;
         
@@ -530,12 +536,12 @@
                     const tileEl = document.createElement('div');
                     tileEl.className = `tile ${tile.color} dragging`;
                     tileEl.textContent = tile.text;
-                    tileEl.style.fontSize = getFontSize(text);
+                    tileEl.style.fontSize = getFontSize(tile.text);
                     tileEl.style.left = (tile.x + deltaX + paneRect.left) + 'px';
                     tileEl.style.top = (tile.y + deltaY + paneRect.top) + 'px';
                     tileEl.dataset.dragging = 'true';
                     document.body.appendChild(tileEl);
-                });
+Z                });
             } else {
                 const tileEl = document.createElement('div');
                 tileEl.className = `tile ${draggedTile.color} dragging`;
