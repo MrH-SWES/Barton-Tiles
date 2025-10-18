@@ -107,7 +107,8 @@
 
       <div class="drawer" id="drawer-prefixes">
         <button class="drawer-header" data-drawer="prefixes">
-          <span>Prefixes & VCE Units (Orange)</span><span class="arrow">▼</span>
+          <span>Prefixes & VCE Units (Orange)</span>
+          <span class="arrow">▼</span>
         </button>
         <div class="drawer-content" id="prefixes"></div>
       </div>
@@ -174,7 +175,7 @@
     let gesture = null;             // tap vs drag
     let dragStartRowY = null;       // row y at drag start
 
-    // RAF throttle for visuals
+    // (RAF throttle kept for future use, but not used for ghosts now)
     let rafId = null;
     function requestVisualUpdate(fn) {
       if (rafId) return;
@@ -440,9 +441,7 @@
       if (e.isPrimary === false) return;
       e.preventDefault();
       e.stopPropagation();
-      if (e.currentTarget.setPointerCapture) {
-        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
-      }
+      // Removed setPointerCapture to avoid losing events when DOM re-renders
 
       const targetRect = e.currentTarget.getBoundingClientRect();
       const startX = e.clientX;
@@ -468,8 +467,7 @@
         if (!gesture.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
           gesture.moved = true;
           beginDrag(gesture, targetRect, dx, dy);
-          // hide originals once, at drag start
-          renderWordPane();
+          // NOTE: no renderWordPane() here; keep DOM stable so ghosts draw
         }
         if (gesture.moved) handleMove(ev);
       };
@@ -534,7 +532,8 @@
       }
 
       dragOffset = { x: startX - targetRect.left, y: startY - targetRect.top };
-      requestVisualUpdate(updateDragVisual);
+      // Paint ghosts immediately
+      updateDragVisual();
     }
 
     function handleMove(e) {
@@ -544,7 +543,8 @@
       draggedTile.x = e.clientX;
       draggedTile.y = e.clientY;
 
-      requestVisualUpdate(updateDragVisual);
+      // Paint ghosts immediately
+      updateDragVisual();
     }
 
     function handleEnd(e) {
