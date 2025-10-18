@@ -16,31 +16,48 @@
             font-family: 'Lexend', sans-serif;
             overflow: hidden;
             touch-action: none;
+            background-color: #333; /* Darker bg for the app to stand out */
         }
         
         #app {
             display: flex;
             flex-direction: column;
             height: 100vh;
+            max-width: 800px; /* Max-width for better desktop layout */
+            margin: 0 auto; /* Center the app */
             background-color: #f3f4f6;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         
+        /* --- MODIFIED: Word Pane is now Lined Paper --- */
         #wordPane {
             flex: 1;
-            background-color: white;
+            background-color: #fefdfa; /* Creamy paper color */
             border-bottom: 4px solid #1f2937;
-            padding: 20px;
+            padding: 20px 20px 20px 40px; /* Added left padding for margin line */
             overflow: auto;
             position: relative;
         }
-        
-        #wordPane .hint {
-            color: #9ca3af;
-            text-align: center;
-            margin-top: 80px;
-            font-size: 18px;
+
+        /* --- NEW: The paper lines --- */
+        .paper-line {
+            height: 100px; /* This is our snap target height */
+            border-bottom: 2px solid #dbe9f5;
+            position: relative;
         }
         
+        /* --- NEW: The red margin line --- */
+        .paper-line:first-child::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: -20px; /* Extends into padding */
+            bottom: -20px; /* Extends into next line */
+            width: 2px;
+            background-color: #f89a9a;
+            z-index: 1;
+        }
+
         #tileTray {
             background-color: #e5e7eb;
             border-top: 2px solid #9ca3af;
@@ -48,36 +65,80 @@
             max-height: 45vh;
         }
         
+        /* --- MODIFIED: "Cooler" 3D Tiles --- */
         .tile {
             width: 60px;
             height: 60px;
-            border: 2px solid #374151;
-            border-radius: 4px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-bottom: 4px solid rgba(0,0,0,0.3); /* "Bottom edge" */
+            border-radius: 6px;
             cursor: move;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             user-select: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 3px 5px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1);
             touch-action: none;
             flex-shrink: 0;
+            color: #374151;
+            text-shadow: 0 1px 1px rgba(255,255,255,0.5);
+            /* --- NEW: Transitions for animations --- */
+            transition: transform 0.15s ease-out, opacity 0.15s ease-out, box-shadow 0.15s ease-out;
+        }
+
+        .tile.blue { 
+            background-color: #60a5fa;
+            background-image: linear-gradient(to bottom, #7bb0fb, #60a5fa 50%);
+        }
+        .tile.yellow { 
+            background-color: #fbbf24;
+            background-image: linear-gradient(to bottom, #fcd34d, #fbbf24 50%);
+        }
+        .tile.red { 
+            background-color: #f87171;
+            background-image: linear-gradient(to bottom, #f98a8a, #f87171 50%);
+        }
+        .tile.green { 
+            background-color: #4ade80;
+            background-image: linear-gradient(to bottom, #6be69a, #4ade80 50%);
+        }
+        .tile.orange { 
+            background-color: #fb923c;
+            background-image: linear-gradient(to bottom, #fca55f, #fb923c 50%);
+        }
+        .tile.purple { 
+            background-color: #a78bfa;
+            background-image: linear-gradient(to bottom, #b8a4fc, #a78bfa 50%);
         }
         
-        .tile.blue { background-color: #60a5fa; }
-        .tile.yellow { background-color: #fbbf24; }
-        .tile.red { background-color: #f87171; }
-        .tile.green { background-color: #4ade80; }
-        .tile.orange { background-color: #fb923c; }
-        .tile.purple { background-color: #a78bfa; }
-        
+        /* --- MODIFIED: Dragging style for "lift" effect --- */
         .tile.dragging {
-            opacity: 0.8;
+            opacity: 0.9;
             position: fixed;
             z-index: 1000;
             pointer-events: none;
+            transform: scale(1.1); /* "Lift" effect */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3), 0 3px 6px rgba(0,0,0,0.2);
         }
-        
+
+        /* --- NEW: Fade-out animation on delete --- */
+        .tile.dragging.fading-out {
+            opacity: 0 !important;
+            transform: scale(0.8) !important;
+            transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+        }
+
+        /* --- NEW: Snap animation --- */
+        @keyframes snap {
+            0% { transform: scale(1.1); }
+            70% { transform: scale(0.98); }
+            100% { transform: scale(1.0); }
+        }
+        .snap-animation {
+            animation: snap 0.2s ease-out;
+        }
+
         .alphabet-section {
             border-bottom: 2px solid #9ca3af;
             padding: 12px;
@@ -145,8 +206,10 @@
             gap: 4px;
         }
         
+        /* --- MODIFIED: Word pane tiles now have a higher z-index --- */
         .word-pane-tile {
             position: absolute;
+            z-index: 10;
         }
 
         .hidden {
@@ -157,7 +220,10 @@
 <body>
     <div id="app">
         <div id="wordPane">
-            <div class="hint">Drag tiles here to build words</div>
+            <div class="paper-line"></div>
+            <div class="paper-line"></div>
+            <div class="paper-line"></div>
+            <div class="paper-line"></div>
         </div>
         
         <div id="tileTray">
@@ -219,6 +285,10 @@
     <script>
         const TILE_SIZE = 60;
         const SNAP_DISTANCE = 10;
+        
+        // --- NEW: Constants for line snapping ---
+        const LINE_HEIGHT = 100; // Must match .paper-line height in CSS
+        const PANE_PADDING_TOP = 20; // Must match #wordPane padding-top in CSS
 
         const B_LEVELS = {
             2: {
@@ -366,22 +436,16 @@
             }
         }
         
+        // --- MODIFIED: renderWordPane triggers snap animation ---
         function renderWordPane() {
             const wordPane = document.getElementById('wordPane');
-            const hint = wordPane.querySelector('.hint');
             
             const existingTiles = wordPane.querySelectorAll('.word-pane-tile');
             existingTiles.forEach(tile => tile.remove());
             
-            if (tiles.length > 0) {
-                hint.style.display = 'none';
-            } else {
-                hint.style.display = 'block';
-            }
+            // Hint logic is removed
             
             tiles.forEach(tile => {
-                // --- MODIFIED ---
-                // This check now prevents the "ghosting" effect
                 if (draggedGroup.find(t => t.id === tile.id)) return;
                 
                 const tileEl = document.createElement('div');
@@ -391,32 +455,40 @@
                 tileEl.style.left = tile.x + 'px';
                 tileEl.style.top = tile.y + 'px';
                 tileEl.dataset.id = tile.id;
+
+                // --- NEW: Add snap animation class if tile was just dropped ---
+                if (tile.snapped) {
+                    tileEl.classList.add('snap-animation');
+                    delete tile.snapped; // Clean up the flag
+                }
                 
                 tileEl.addEventListener('mousedown', (e) => handleTileStart(e, tile.text, tile.color, tile.id));
-                // --- BUG FIX ---
-                // Changed 'text' to 'tile.text'
                 tileEl.addEventListener('touchstart', (e) => handleTileStart(e, tile.text, tile.color, tile.id), { passive: false });
                 
                 wordPane.appendChild(tileEl);
             });
         }
         
+        // --- MODIFIED: findNearbyTiles now only checks tiles on the same line ---
         function findNearbyTiles(x, y, excludeId) {
             const nearby = [];
             tiles.forEach(tile => {
                 if (tile.id === excludeId) return;
                 
-                const dy = Math.abs(tile.y - y);
-                
-                if (dy < TILE_SIZE / 2) {
+                // Only check for tiles on the *exact same Y level*
+                if (Math.abs(tile.y - y) < 10) { 
+                    // Snap to right edge of existing tile
                     if (Math.abs((tile.x + TILE_SIZE) - x) < SNAP_DISTANCE) {
                         nearby.push({ tile, edge: 'right', snapX: tile.x + TILE_SIZE, snapY: tile.y });
                     }
+                    // Snap to left edge of existing tile
                     if (Math.abs(tile.x - (x + TILE_SIZE)) < SNAP_DISTANCE) {
                         nearby.push({ tile, edge: 'left', snapX: tile.x - TILE_SIZE, snapY: tile.y });
                     }
                 }
             });
+            // Sort by distance to find the closest
+            nearby.sort((a, b) => Math.abs(a.snapX - x) - Math.abs(b.snapX - x));
             return nearby;
         }
         
@@ -437,7 +509,7 @@
                     startX: touch.clientX,
                     startY: touch.clientY
                 };
-                draggedGroup = []; // Tiles from the tray are never in a group to start
+                draggedGroup = [];
             } else {
                 const tile = tiles.find(t => t.id === source);
                 draggedTile = {
@@ -448,8 +520,6 @@
                     startX: touch.clientX,
                     startY: touch.clientY
                 };
-                // --- MODIFIED ---
-                // Immediately put the dragged tile into the group so it "picks up"
                 draggedGroup = [tile]; 
             }
             
@@ -472,15 +542,13 @@
             draggedTile.x = newX;
             draggedTile.y = newY;
             
-            // --- MODIFIED ---
-            // Simplified the group-finding logic
             if (draggedTile.sourceType === 'pane') {
                 const deltaX = newX - draggedTile.startX;
                 const deltaY = newY - draggedTile.startY;
                 const absDeltaX = Math.abs(deltaX);
                 const absDeltaY = Math.abs(deltaY);
                 
-                if (absDeltaX > 20 || absDeltaY > 20) {
+                if (absDeltaX > 10 || absDeltaY > 10) { // Smaller threshold for group drag
                     if (absDeltaX > absDeltaY) {
                         const currentTile = tiles.find(t => t.id === draggedTile.id);
                         const sameLine = tiles.filter(t => 
@@ -490,9 +558,9 @@
                         const currentIndex = sameLine.findIndex(t => t.id === draggedTile.id);
                         
                         const hasLeftNeighbor = currentIndex > 0 && 
-                            Math.abs(sameLine[currentIndex - 1].x + TILE_SIZE - currentTile.x) < 5;
+                            Math.abs(sameLine[currentIndex - 1].x + TILE_SIZE - currentTile.x) < 10;
                         const hasRightNeighbor = currentIndex < sameLine.length - 1 && 
-                            Math.abs(currentTile.x + TILE_SIZE - sameLine[currentIndex + 1].x) < 5;
+                            Math.abs(currentTile.x + TILE_SIZE - sameLine[currentIndex + 1].x) < 10;
                         
                         if (deltaX < 0 && hasLeftNeighbor) {
                             const group = sameLine.slice(0, currentIndex + 1);
@@ -501,7 +569,6 @@
                             const group = sameLine.slice(currentIndex);
                             draggedGroup = group;
                         } else {
-                            // It's a single-tile drag, so reset group to just this tile
                             draggedGroup = [currentTile];
                         }
                     }
@@ -511,6 +578,7 @@
             updateDragVisual();
         }
         
+        // --- MODIFIED: handleEnd now contains all snap logic ---
         function handleEnd(e) {
             if (!draggedTile) return;
             e.preventDefault();
@@ -519,90 +587,58 @@
             const wordPane = document.getElementById('wordPane');
             const paneRect = wordPane.getBoundingClientRect();
             
+            // Check if dropped inside the word pane
             if (touch.clientX >= paneRect.left && 
                 touch.clientX <= paneRect.right && 
                 touch.clientY >= paneRect.top && 
                 touch.clientY <= paneRect.bottom) {
                 
-                const dropX = touch.clientX - paneRect.left - dragOffset.x;
-                const dropY = touch.clientY - paneRect.top - dragOffset.y;
+                // --- NEW: Snap-to-Line Logic ---
+                const dropX_raw = touch.clientX - paneRect.left - dragOffset.x;
+                const dropY_raw = touch.clientY - paneRect.top - dragOffset.y;
+                
+                // Find the closest line index
+                const snappedLineIndex = Math.max(0, Math.floor((dropY_raw + (LINE_HEIGHT / 2)) / LINE_HEIGHT));
+                // Calculate the final Y position for the top of the tile
+                const finalY = (snappedLineIndex * LINE_HEIGHT) + PANE_PADDING_TOP + (LINE_HEIGHT - TILE_SIZE - 10); // 10px from bottom
+                
+                let finalX = dropX_raw;
+                let groupId = null;
+                
+                // Check for horizontal snaps on the *same line*
+                const nearby = findNearbyTiles(finalX, finalY, draggedTile.id);
+                if (nearby.length > 0) {
+                    finalX = nearby[0].snapX; // Snap to the closest tile
+                    groupId = nearby[0].tile.groupId || nearby[0].tile.id;
+                }
                 
                 if (draggedTile.sourceType === 'tray') {
-                    const nearby = findNearbyTiles(dropX, dropY, draggedTile.id);
-                    
-                    let finalX = dropX;
-                    let finalY = dropY;
-                    let groupId = null;
-                    
-                    if (nearby.length > 0) {
-                        const closest = nearby[0];
-                        finalX = closest.snapX;
-                        finalY = closest.snapY;
-                        groupId = closest.tile.groupId || closest.tile.id;
-                    }
-                    
                     const newTile = {
                         id: Date.now() + Math.random(),
                         text: draggedTile.text,
                         color: draggedTile.color,
                         x: finalX,
                         y: finalY,
-                        groupId: groupId
+                        groupId: groupId,
+                        snapped: true // --- NEW: Flag for animation ---
                     };
                     tiles.push(newTile);
-                } else {
-                    const deltaX = touch.clientX - draggedTile.startX;
-                    const deltaY = touch.clientY - draggedTile.startY;
-                    
-                    if (draggedGroup.length > 0) {
-                        // This block now handles both single and group drags
-                        tiles = tiles.map(t => {
-                            const inGroup = draggedGroup.find(gt => gt.id === t.id);
-                            if (inGroup) {
-                                // Find the main tile being dragged to get its drop position
-                                const mainDraggedTile = draggedGroup.find(gt => gt.id === draggedTile.id);
-                                const mainTileDropX = touch.clientX - paneRect.left - (draggedTile.startX - mainDraggedTile.x);
-                                const mainTileDropY = touch.clientY - paneRect.top - (draggedTile.startY - mainDraggedTile.y);
-                                
-                                // Calculate offset from the main dragged tile
-                                const tileOffsetX = t.x - mainDraggedTile.x;
-                                const tileOffsetY = t.y - mainDraggedTile.y;
 
-                                let finalX = mainTileDropX + tileOffsetX;
-                                let finalY = mainTileDropY + tileOffsetY;
-                                let groupId = null;
-
-                                // Snap the *main* tile of the group
-                                if (t.id === draggedTile.id) {
-                                    const nearby = findNearbyTiles(finalX, finalY, draggedTile.id);
-                                    if (nearby.length > 0) {
-                                        const closest = nearby[0];
-                                        finalX = closest.snapX;
-                                        finalY = closest.snapY;
-                                        groupId = closest.tile.groupId || closest.tile.id;
-                                    }
-                                }
-                                
-                                // Apply snapping adjustment to all other tiles in the group
-                                if (t.id !== draggedTile.id) {
-                                    const mainTile = draggedGroup.find(gt => gt.id === draggedTile.id);
-                                    const nearby = findNearbyTiles(mainTile.x, mainTile.y, mainTile.id);
-                                    if(nearby.length > 0) {
-                                        const closest = nearby[0];
-                                        finalX = closest.snapX + (t.x - mainTile.x);
-                                        finalY = closest.snapY + (t.y - mainTile.y);
-                                        groupId = closest.tile.groupId || closest.tile.id;
-                                    }
-                                }
-
-                                return { ...t, x: finalX, y: finalY, groupId: groupId };
-                            }
-                            return t;
-                        });
-
-                    } 
+                } else if (draggedGroup.length > 0) {
+                    // This handles pane-to-pane drags (both single and group)
+                    tiles = tiles.map(t => {
+                        const inGroup = draggedGroup.find(gt => gt.id === t.id);
+                        if (inGroup) {
+                            // Find offset from the main dragged tile
+                            const offsetX = t.x - draggedTile.x;
+                            const newX = finalX + offsetX;
+                            return { ...t, x: newX, y: finalY, groupId: groupId, snapped: true };
+                        }
+                        return t;
+                    });
                 }
             } else if (draggedTile.sourceType === 'pane') {
+                // Dropped outside: filter out the dragged group
                 if (draggedGroup.length > 0) {
                     tiles = tiles.filter(t => !draggedGroup.find(gt => gt.id === t.id));
                 }
@@ -631,13 +667,12 @@
                     tileEl.className = `tile ${tile.color} dragging`;
                     tileEl.textContent = tile.text;
                     tileEl.style.fontSize = getFontSize(tile.text);
-                    // Use tile's original position + delta
                     tileEl.style.left = (tile.x + deltaX + paneRect.left) + 'px';
                     tileEl.style.top = (tile.y + deltaY + paneRect.top) + 'px';
                     tileEl.dataset.dragging = 'true';
                     document.body.appendChild(tileEl);
                 });
-            } else { // This block now only runs for tiles from the tray
+            } else { 
                 const tileEl = document.createElement('div');
                 tileEl.className = `tile ${draggedTile.color} dragging`;
                 tileEl.textContent = draggedTile.text;
@@ -651,8 +686,16 @@
             renderWordPane();
         }
         
+        // --- MODIFIED: clearDragVisual now animates the deletion ---
         function clearDragVisual() {
-            document.querySelectorAll('[data-dragging="true"]').forEach(el => el.remove());
+            document.querySelectorAll('[data-dragging="true"]').forEach(el => {
+                if (draggedTile === null) { // Only animate if it's a delete
+                    el.classList.add('fading-out');
+                    setTimeout(() => el.remove(), 200); // Remove after animation
+                } else {
+                    el.remove(); // Remove immediately if it's just a drop
+                }
+            });
         }
         
         document.addEventListener('mousemove', handleMove);
