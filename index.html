@@ -109,12 +109,8 @@
             font-weight: 600;
             margin-bottom: 4px;
         }
-        
-        .tile-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
+
+        /* --- THIS .tile-row RULE IS NOW GONE --- */
         
         .drawer {
             border-bottom: 1px solid #9ca3af;
@@ -144,8 +140,11 @@
             display: none;
         }
         
+        /* --- THIS RULE IS NOW THE FLEX CONTAINER --- */
         .drawer-content.open {
-            display: block;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
         }
         
         .word-pane-tile {
@@ -181,7 +180,7 @@
                     <span>Glued Sounds & Units</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content tile-row" id="wordUnits"></div>
+                <div class="drawer-content" id="wordUnits"></div>
             </div>
             
             <div class="drawer">
@@ -189,7 +188,7 @@
                     <span>Suffixes</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content tile-row" id="affixes"></div>
+                <div class="drawer-content" id="affixes"></div>
             </div>
             
             <div class="drawer">
@@ -197,7 +196,7 @@
                     <span>Prefixes & VCE Units</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content tile-row" id="prefixes"></div>
+                <div class="drawer-content" id="prefixes"></div>
             </div>
             
             <div class="drawer">
@@ -205,7 +204,7 @@
                     <span>Latin Prefixes & Roots</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content tile-row" id="latin"></div>
+                <div class="drawer-content" id="latin"></div>
             </div>
         </div>
     </div>
@@ -220,7 +219,7 @@
         const vowelTeams = ["ai", "ee", "oa", "ay", "ow", "ew", "ur", "er", "or", "ir", "ar", "?r", "ey", "ie", "au", "aw", "oi", "oy", "eu", "ei", "ea", "ou", "oo", "igh", "eigh", "augh", "ear", "eau", "our", "é"];
         const redTiles = ["all", "ang", "ing", "ong", "ung", "ank", "ink", "onk", "unk", "oll", "old", "ild", "olt", "ind", "ost", "sion", "tion", "ive", "ture", "sure"];
         const greenTiles = ["able", "en", "ist", "er", "ed", "es", "s", "'", "ity", "ish", "y", "est", "ing", "ly", "ful", "less", "ness", "ment", "an", "ence", "ance", "ize", "al", "ic", "ous", "or", "ible"];
-        const orangeTiles = ["ate", "ite", "age", "ine", "ace", "ice", "over", "up", "inter", "mid", "re", "pre", "mis", "sub", "dis", "in", "non", "un", "de", "bio", "geo", "counter", "ir", "para"];
+        const orangeTiles = ["ate", "ite", "age", "ine", "ace", "ice", "over", "up", "inter", "mid", "re", "pre", "mis", "sub", "dis", "in", "non", "un", "de", "bio", "geo", "counter", "ir","para"];
         const purpleTiles = ["in", "il", "im", "ir", "ob", "oc", "of", "op", "o", "con", "col", "com", "cor", "sub", "suc", "suf", "sug", "sup", "sus", "ad", "an", "ac", "ap", "af", "ar", "ag", "as", "al", "at", "ex", "ef", "e", "dis", "dif", "di", "trans", "dec", "cent", "mil", "deci", "centi", "milli", "equi", "uni", "quad", "quin", "sex", "sept", "oct", "nov"];
         
         let tiles = [];
@@ -300,18 +299,16 @@
         
         function renderWordPane() {
             const wordPane = document.getElementById('wordPane');
-            const hint = wordPane.querySelector('.hint'); // Get the hint element
+            const hint = wordPane.querySelector('.hint');
             
             const existingTiles = wordPane.querySelectorAll('.word-pane-tile');
             existingTiles.forEach(tile => tile.remove());
             
-            // --- Hide or show hint based on if tiles exist ---
             if (tiles.length > 0) {
                 hint.style.display = 'none';
             } else {
                 hint.style.display = 'block';
             }
-            // -------------------------------------------------
             
             tiles.forEach(tile => {
                 if (draggedGroup.find(t => t.id === tile.id)) return;
@@ -325,7 +322,7 @@
                 tileEl.dataset.id = tile.id;
                 
                 tileEl.addEventListener('mousedown', (e) => handleTileStart(e, tile.text, tile.color, tile.id));
-                tileEl.addEventListener('touchstart', (e) => handleTileStart(e, tile.text, tile.color, tile.id), { passive: false });
+                tileEl.addEventListener('touchstart', (e) => handleTileStart(e, text, tile.color, tile.id), { passive: false });
                 
                 wordPane.appendChild(tileEl);
             });
@@ -356,7 +353,7 @@
             
             const touch = e.touches ? e.touches[0] : e;
             const rect = e.target.getBoundingClientRect();
-            
+
             if (source === 'tray') {
                 draggedTile = {
                     text: text,
@@ -533,7 +530,7 @@
                     const tileEl = document.createElement('div');
                     tileEl.className = `tile ${tile.color} dragging`;
                     tileEl.textContent = tile.text;
-                    tileEl.style.fontSize = getFontSize(tile.text);
+                    tileEl.style.fontSize = getFontSize(text);
                     tileEl.style.left = (tile.x + deltaX + paneRect.left) + 'px';
                     tileEl.style.top = (tile.y + deltaY + paneRect.top) + 'px';
                     tileEl.dataset.dragging = 'true';
