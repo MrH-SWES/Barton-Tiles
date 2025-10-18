@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barton Reading Tile Board</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Lexend', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f3f4f6;
+        }
+        
+        #wordPane {
+            flex: 1;
+            background-color: white;
+            border-bottom: 4px solid #1f2937;
+            padding: 20px;
+            overflow: auto;
+            position: relative;
+        }
+        
+        #wordPane .hint {
+            color: #9ca3af;
+            text-align: center;
+            margin-top: 80px;
+            font-size: 18px;
+        }
+        
+        #tileTray {
+            background-color: #e5e7eb;
+            border-top: 2px solid #9ca3af;
+            overflow-y: auto;
+            max-height: 45vh;
+        }
+        
+        .tile {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #374151;
+            border-radius: 4px;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            touch-action: none;
+        }
+        
+        .tile.blue { background-color: #60a5fa; }
+        .tile.yellow { background-color: #fbbf24; }
+        .tile.red { background-color: #f87171; }
+        .tile.green { background-color: #4ade80; }
+        .tile.orange { background-color: #fb923c; }
+        .tile.purple { background-color: #a78bfa; }
+        
+        .tile.dragging {
+            opacity: 0.8;
+            position: fixed;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        
+        .alphabet-section {
+            border-bottom: 2px solid #9ca3af;
+            padding: 12px;
+        }
+        
+        .section-title {
+            background-color: #d1d5db;
+            padding: 8px 16px;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+        
+        .alphabet-row {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 4px;
+            justify-content: center;
+        }
+        
+        .teams-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .teams-section {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .tile-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        
+        .drawer {
+            border-bottom: 1px solid #9ca3af;
+        }
+        
+        .drawer-header {
+            width: 100%;
+            background-color: #d1d5db;
+            padding: 8px 16px;
+            font-weight: bold;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            border: none;
+            text-align: left;
+        }
+        
+        .drawer-header:hover {
+            background-color: #9ca3af;
+        }
+        
+        .drawer-content {
+            background-color: #f3f4f6;
+            padding: 8px;
+            display: none;
+        }
+        
+        .drawer-content.open {
+            display: block;
+        }
+        
+        .word-pane-tile {
+            position: absolute;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="wordPane">
+            <div class="hint">Drag tiles here to build words</div>
+        </div>
+        
+        <div id="tileTray">
+            <div class="alphabet-section">
+                <div class="section-title">Alphabet & Teams</div>
+                <div class="alphabet-row" id="alphabetRow1"></div>
+                <div class="alphabet-row" id="alphabetRow2"></div>
+                <div class="teams-grid">
+                    <div>
+                        <div class="teams-section">Consonant Teams</div>
+                        <div class="tile-row" id="consonantTeams"></div>
+                    </div>
+                    <div>
+                        <div class="teams-section">Vowel Teams</div>
+                        <div class="tile-row" id="vowelTeams"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="drawer">
+                <button class="drawer-header" data-drawer="wordUnits">
+                    <span>Word Units</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="drawer-content" id="wordUnits"></div>
+            </div>
+            
+            <div class="drawer">
+                <button class="drawer-header" data-drawer="affixes">
+                    <span>Affixes</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="drawer-content" id="affixes"></div>
+            </div>
+            
+            <div class="drawer">
+                <button class="drawer-header" data-drawer="prefixes">
+                    <span>Prefixes</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="drawer-content" id="prefixes"></div>
+            </div>
+            
+            <div class="drawer">
+                <button class="drawer-header" data-drawer="latin">
+                    <span>Latin</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="drawer-content" id="latin"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TILE_SIZE = 60;
+        const SNAP_DISTANCE = 10;
+        
+        const alphabetRow1 = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"];
+        const alphabetRow2 = ["n", "o", "p", "qu", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
+        const consonantDigraphs = ["ch", "wh", "sh", "th", "ck", "tch", "ph", "dge", "?i", "ci", "ti", "si", "ps", "mn", "rh", "wr", "kn", "gh", "gn", "que", "qué", "gue"];
+        const vowelTeams = ["ai", "ee", "oa", "ay", "ow", "ew", "ur", "er", "or", "ir", "ar", "?r", "ey", "ie", "au", "aw", "oi", "oy", "eu", "ei", "ea", "ou", "oo", "igh", "eigh", "augh", "ear", "eau", "our", "é"];
+        const redTiles = ["all", "ang", "ing", "ong", "ung", "ank", "ink", "onk", "unk", "oll", "old", "ild", "olt", "ind", "ost", "sion", "tion", "ive", "ture", "sure"];
+        const greenTiles = ["able", "en", "ist", "er", "ed", "es", "s", "'", "ity", "ish", "y", "est", "ing", "ly", "ful", "less", "ness", "ment", "an", "ence", "ance", "ize", "al", "ic", "ous", "or", "ible"];
+        const orangeTiles = ["ate", "ite", "age", "ine", "ace", "ice", "over", "up", "inter", "mid", "re", "pre", "mis", "sub", "dis", "in", "non", "un", "de", "bio", "geo", "counter", "ir", "para"];
+        const purpleTiles = ["in", "il", "im", "ir", "ob", "oc", "of", "op", "o", "con", "col", "com", "cor", "sub", "suc", "suf", "sug", "sup", "sus", "ad", "an", "ac", "ap", "af", "ar", "ag", "as", "al", "at", "ex", "ef", "e", "dis", "dif", "di", "trans", "dec", "cent", "mil", "deci", "centi", "milli", "equi", "uni", "quad", "quin", "sex", "sept", "oct", "nov"];
+        
+        let tiles = [];
+        let draggedTile = null;
+        let draggedGroup = [];
+        let dragOffset = { x: 0, y: 0 };
+        
+        function getTileColor(text) {
+            const vowels = ["a", "e", "i", "o", "u"];
+            return vowels.includes(text) ? 'yellow' : 'blue';
+        }
+        
+        function getFontSize(text) {
+            if (text.length === 1) return '24px';
+            if (text.length === 2) return '20px';
+            if (text.length === 3) return '16px';
+            return '14px';
+        }
+        
+        function createTile(text, color, source) {
+            const tile = document.createElement('div');
+            tile.className = `tile ${color}`;
+            tile.textContent = text;
+            tile.style.fontSize = getFontSize(text);
+            tile.dataset.text = text;
+            tile.dataset.color = color;
+            tile.dataset.source = source;
+            
+            tile.addEventListener('mousedown', (e) => handleTileStart(e, text, color, source));
+            tile.addEventListener('touchstart', (e) => handleTileStart(e, text, color, source), { passive: false });
+            
+            return tile;
+        }
+        
+        function renderTray() {
+            document.getElementById('alphabetRow1').innerHTML = '';
+            document.getElementById('alphabetRow2').innerHTML = '';
+            document.getElementById('consonantTeams').innerHTML = '';
+            document.getElementById('vowelTeams').innerHTML = '';
+            document.getElementById('wordUnits').innerHTML = '';
+            document.getElementById('affixes').innerHTML = '';
+            document.getElementById('prefixes').innerHTML = '';
+            document.getElementById('latin').innerHTML = '';
+            
+            alphabetRow1.forEach(letter => {
+                document.getElementById('alphabetRow1').appendChild(createTile(letter, getTileColor(letter), 'tray'));
+            });
+            
+            alphabetRow2.forEach(letter => {
+                document.getElementById('alphabetRow2').appendChild(createTile(letter, getTileColor(letter), 'tray'));
+            });
+            
+            consonantDigraphs.forEach(team => {
+                document.getElementById('consonantTeams').appendChild(createTile(team, 'blue', 'tray'));
+            });
+            
+            vowelTeams.forEach(team => {
+                document.getElementById('vowelTeams').appendChild(createTile(team, 'yellow', 'tray'));
+            });
+            
+            redTiles.forEach(tile => {
+                document.getElementById('wordUnits').appendChild(createTile(tile, 'red', 'tray'));
+            });
+            
+            greenTiles.forEach(tile => {
+                document.getElementById('affixes').appendChild(createTile(tile, 'green', 'tray'));
+            });
+            
+            orangeTiles.forEach(tile => {
+                document.getElementById('prefixes').appendChild(createTile(tile, 'orange', 'tray'));
+            });
+            
+            purpleTiles.forEach(tile => {
+                document.getElementById('latin').appendChild(createTile(tile, 'purple', 'tray'));
+            });
+        }
+        
+        function renderWordPane() {
+            const wordPane = document.getElementById('wordPane');
+            const existingTiles = wordPane.querySelectorAll('.word-pane-tile');
+            existingTiles.forEach(tile => tile.remove());
+            
+            tiles.forEach(tile => {
+                if (draggedGroup.find(t => t.id === tile.id)) return;
+                
+                const tileEl = document.createElement('div');
+                tileEl.className = `tile ${tile.color} word-pane-tile`;
+                tileEl.textContent = tile.text;
+                tileEl.style.fontSize = getFontSize(tile.text);
+                tileEl.style.left = tile.x + 'px';
+                tileEl.style.top = tile.y + 'px';
+                tileEl.dataset.id = tile.id;
+                
+                tileEl.addEventListener('mousedown', (e) => handleTileStart(e, tile.text, tile.color, tile.id));
+                tileEl.addEventListener('touchstart', (e) => handleTileStart(e, tile.text, tile.color, tile.id), { passive: false });
+                
+                wordPane.appendChild(tileEl);
+            });
+        }
+        
+        function findNearbyTiles(x, y, excludeId) {
+            const nearby = [];
+            tiles.forEach(tile => {
+                if (tile.id === excludeId) return;
+                
+                const dy = Math.abs(tile.y - y);
+                
+                if (dy < TILE_SIZE / 2) {
+                    if (Math.abs((tile.x + TILE_SIZE) - x) < SNAP_DISTANCE) {
+                        nearby.push({ tile, edge: 'right', snapX: tile.x + TILE_SIZE, snapY: tile.y });
+                    }
+                    if (Math.abs(tile.x - (x + TILE_SIZE)) < SNAP_DISTANCE) {
+                        nearby.push({ tile, edge: 'left', snapX: tile.x - TILE_SIZE, snapY: tile.y });
+                    }
+                }
+            });
+            return nearby;
+        }
+        
+        function handleTileStart(e, text, color, source) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const touch = e.touches ? e.touches[0] : e;
+            const rect = e.target.getBoundingClientRect();
+            
+            if (source === 'tray') {
+                draggedTile = {
+                    text: text,
+                    color: color,
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    sourceType: 'tray',
+                    startX: touch.clientX,
+                    startY: touch.clientY
+                };
+            } else {
+                const tile = tiles.find(t => t.id === source);
+                draggedTile = {
+                    ...tile,
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    sourceType: 'pane',
+                    startX: touch.clientX,
+                    startY: touch.clientY
+                };
+            }
+            
+            dragOffset = {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+            
+            updateDragVisual();
+        }
+        
+        function handleMove(e) {
+            if (!draggedTile) return;
+            e.preventDefault();
+            
+            const touch = e.touches ? e.touches[0] : e;
+            const newX = touch.clientX;
+            const newY = touch.clientY;
+            
+            draggedTile.x = newX;
+            draggedTile.y = newY;
+            
+            if (draggedTile.sourceType === 'pane' && draggedGroup.length === 0) {
+                const deltaX = newX - draggedTile.startX;
+                const deltaY = newY - draggedTile.startY;
+                const absDeltaX = Math.abs(deltaX);
+                const absDeltaY = Math.abs(deltaY);
+                
+                if (absDeltaX > 20 || absDeltaY > 20) {
+                    if (absDeltaX > absDeltaY) {
+                        const currentTile = tiles.find(t => t.id === draggedTile.id);
+                        const sameLine = tiles.filter(t => 
+                            Math.abs(t.y - currentTile.y) < TILE_SIZE / 2
+                        ).sort((a, b) => a.x - b.x);
+                        
+                        const currentIndex = sameLine.findIndex(t => t.id === draggedTile.id);
+                        
+                        const hasLeftNeighbor = currentIndex > 0 && 
+                            Math.abs(sameLine[currentIndex - 1].x + TILE_SIZE - currentTile.x) < 5;
+                        const hasRightNeighbor = currentIndex < sameLine.length - 1 && 
+                            Math.abs(currentTile.x + TILE_SIZE - sameLine[currentIndex + 1].x) < 5;
+                        
+                        if (deltaX < 0 && hasLeftNeighbor) {
+                            const group = sameLine.slice(0, currentIndex + 1);
+                            draggedGroup = group;
+                        } else if (deltaX > 0 && hasRightNeighbor) {
+                            const group = sameLine.slice(currentIndex);
+                            draggedGroup = group;
+                        }
+                    }
+                }
+            }
+            
+            updateDragVisual();
+        }
+        
+        function handleEnd(e) {
+            if (!draggedTile) return;
+            e.preventDefault();
+            
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const wordPane = document.getElementById('wordPane');
+            const paneRect = wordPane.getBoundingClientRect();
+            
+            if (touch.clientX >= paneRect.left && 
+                touch.clientX <= paneRect.right && 
+                touch.clientY >= paneRect.top && 
+                touch.clientY <= paneRect.bottom) {
+                
+                const dropX = touch.clientX - paneRect.left - dragOffset.x;
+                const dropY = touch.clientY - paneRect.top - dragOffset.y;
+                
+                if (draggedTile.sourceType === 'tray') {
+                    const nearby = findNearbyTiles(dropX, dropY, draggedTile.id);
+                    
+                    let finalX = dropX;
+                    let finalY = dropY;
+                    let groupId = null;
+                    
+                    if (nearby.length > 0) {
+                        const closest = nearby[0];
+                        finalX = closest.snapX;
+                        finalY = closest.snapY;
+                        groupId = closest.tile.groupId || closest.tile.id;
+                    }
+                    
+                    const newTile = {
+                        id: Date.now() + Math.random(),
+                        text: draggedTile.text,
+                        color: draggedTile.color,
+                        x: finalX,
+                        y: finalY,
+                        groupId: groupId
+                    };
+                    tiles.push(newTile);
+                } else {
+                    const deltaX = touch.clientX - draggedTile.startX;
+                    const deltaY = touch.clientY - draggedTile.startY;
+                    
+                    if (draggedGroup.length > 0) {
+                        tiles = tiles.map(t => {
+                            const inGroup = draggedGroup.find(gt => gt.id === t.id);
+                            if (inGroup) {
+                                return { ...t, x: t.x + deltaX, y: t.y + deltaY };
+                            }
+                            return t;
+                        });
+                    } else {
+                        const nearby = findNearbyTiles(dropX, dropY, draggedTile.id);
+                        let finalX = dropX;
+                        let finalY = dropY;
+                        let groupId = null;
+                        
+                        if (nearby.length > 0) {
+                            const closest = nearby[0];
+                            finalX = closest.snapX;
+                            finalY = closest.snapY;
+                            groupId = closest.tile.groupId || closest.tile.id;
+                        }
+                        
+                        tiles = tiles.map(t => 
+                            t.id === draggedTile.id 
+                                ? { ...t, x: finalX, y: finalY, groupId: groupId }
+                                : t
+                        );
+                    }
+                }
+            } else if (draggedTile.sourceType === 'pane') {
+                if (draggedGroup.length > 0) {
+                    tiles = tiles.filter(t => !draggedGroup.find(gt => gt.id === t.id));
+                } else {
+                    tiles = tiles.filter(t => t.id !== draggedTile.id);
+                }
+            }
+            
+            draggedTile = null;
+            draggedGroup = [];
+            clearDragVisual();
+            renderWordPane();
+        }
+        
+        function updateDragVisual() {
+            clearDragVisual();
+            
+            if (!draggedTile) return;
+            
+            const wordPane = document.getElementById('wordPane');
+            const paneRect = wordPane.getBoundingClientRect();
+            
+            if (draggedGroup.length > 0) {
+                const deltaX = draggedTile.x - draggedTile.startX;
+                const deltaY = draggedTile.y - draggedTile.startY;
+                
+                draggedGroup.forEach(tile => {
+                    const tileEl = document.createElement('div');
+                    tileEl.className = `tile ${tile.color} dragging`;
+                    tileEl.textContent = tile.text;
+                    tileEl.style.fontSize = getFontSize(tile.text);
+                    tileEl.style.left = (tile.x + deltaX + paneRect.left) + 'px';
+                    tileEl.style.top = (tile.y + deltaY + paneRect.top) + 'px';
+                    tileEl.dataset.dragging = 'true';
+                    document.body.appendChild(tileEl);
+                });
+            } else {
+                const tileEl = document.createElement('div');
+                tileEl.className = `tile ${draggedTile.color} dragging`;
+                tileEl.textContent = draggedTile.text;
+                tileEl.style.fontSize = getFontSize(draggedTile.text);
+                tileEl.style.left = (draggedTile.x - dragOffset.x) + 'px';
+                tileEl.style.top = (draggedTile.y - dragOffset.y) + 'px';
+                tileEl.dataset.dragging = 'true';
+                document.body.appendChild(tileEl);
+            }
+            
+            renderWordPane();
+        }
+        
+        function clearDragVisual() {
+            document.querySelectorAll('[data-dragging="true"]').forEach(el => el.remove());
+        }
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchend', handleEnd);
+        
+        document.querySelectorAll('.drawer-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                const drawerId = e.currentTarget.dataset.drawer;
+                const content = document.getElementById(drawerId);
+                const arrow = e.currentTarget.querySelector('.arrow');
+                
+                if (content.classList.contains('open')) {
+                    content.classList.remove('open');
+                    arrow.textContent = '▼';
+                } else {
+                    content.classList.add('open');
+                    arrow.textContent = '▲';
+                }
+            });
+        });
+        
+        renderTray();
+        renderWordPane();
+    </script>
+</body>
+</html>
