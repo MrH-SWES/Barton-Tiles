@@ -176,21 +176,27 @@
       }
     }
 
-    // Get the full chain for a tile (use groupId if present; otherwise reconstruct by flush)
-    function getGroupChain(main) {
-      if (main.groupId) {
-        return tiles
-          .filter(t => t.groupId === main.groupId)
-          .sort((a,b)=>a.x - b.x);
-      }
-      // reconstruct contiguous chain around main
-      const row = tiles.filter(t => sameRowY(t.y, main.y)).sort((a,b)=>a.x-b.x);
-      const idx = row.findIndex(t=>t.id===main.id);
-      let L = idx, R = idx;
-      while (L-1 >= 0 && areFlush(row[L-1], row[L])) L--;
-      while (R+1 < row.length && areFlush(row[R], row[R+1])) R++;
-      return row.slice(L, R+1);
-    }
+    // Build the current contiguous chain purely by geometry (flush edges),
+    // ignoring any stale groupId state.
+  function getGroupChain(main) {
+    const row = tiles
+      .filter(t => Math.abs(t.y - main.y) < TILE_SIZE / 2)
+      .sort((a, b) => a.x - b.x);
+
+    const idx = row.findIndex(t => t.id === main.id);
+    if (idx === -1) return [main];
+
+    // expand left while exactly flush
+    let L = idx;
+    while (L - 1 >= 0 && Math.abs(row[L - 1].x + TILE_SIZE - row[L].x) <= 2) L--;
+
+    // expand right while exactly flush
+    let R = idx;
+    while (R + 1 < row.length && Math.abs(row[R].x + TILE_SIZE - row[R + 1].x) <= 2) R++;
+
+    return row.slice(L, R + 1);
+  }
+
 
     function within(px, threshold) { return Math.abs(px) <= threshold; }
 
