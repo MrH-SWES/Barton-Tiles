@@ -44,6 +44,22 @@
 <body>
   <div id="app">
     <div id="wordPane">
+      <button id="resetButton"
+        style="
+          position:absolute;
+          top:10px;
+          right:10px;
+          background-color:#dc2626;
+          color:white;
+          border:none;
+          border-radius:6px;
+          padding:6px 14px;
+          font-weight:bold;
+          cursor:pointer;
+        ">
+        Reset
+      </button>
+
       <div class="hint">Drag tiles here to build words. Tap to hear the sound.</div>
     </div>
 
@@ -562,6 +578,15 @@
       clearDragVisual();
       renderWordPane();
     }
+
+  document.getElementById('resetButton').addEventListener('click', () => {
+  if (confirm('Clear all tiles from the board?')) {
+    tiles = [];
+    draggedTile = null;
+    draggedGroup = [];
+    renderWordPane();
+  }
+});  
 
     // ====== DRAG VISUALS ======
     function updateDragVisual() {
