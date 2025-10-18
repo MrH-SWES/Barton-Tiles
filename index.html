@@ -197,55 +197,93 @@
       return tile;
     }
 
-    function renderTray() {
-      const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
+function renderTray() {
+  const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
 
-      blueTiles = []; yellowTiles = []; redTiles = []; greenTiles = []; orangeTiles = []; purpleTiles = [];
-      for (let i = 2; i <= selectedLevel; i++) {
-        const lvl = B_LEVELS[i]; if (!lvl) continue;
-        if (lvl.blue) blueTiles.push(...lvl.blue);
-        if (lvl.yellow) yellowTiles.push(...lvl.yellow);
-        if (lvl.red) redTiles.push(...lvl.red);
-        if (lvl.green) greenTiles.push(...lvl.green);
-        if (lvl.orange) orangeTiles.push(...lvl.orange);
-        if (lvl.purple) purpleTiles.push(...lvl.purple);
-      }
-      blueTiles = getUniqueSorted(blueTiles);
-      yellowTiles = getUniqueSorted(yellowTiles);
-      redTiles = getUniqueSorted(redTiles);
-      greenTiles = getUniqueSorted(greenTiles);
-      orangeTiles = getUniqueSorted(orangeTiles);
-      purpleTiles = getUniqueSorted(purpleTiles);
+  // collect sets for this level (up through selected)
+  blueTiles = [];
+  yellowTiles = [];
+  redTiles = [];
+  greenTiles = [];
+  orangeTiles = [];
+  purpleTiles = [];
 
-      document.getElementById('lessonTiles').innerHTML = '';
-      document.getElementById('wordUnits').innerHTML = '';
-      document.getElementById('affixes').innerHTML = '';
-      document.getElementById('prefixes').innerHTML = '';
-      document.getElementById('latin').innerHTML = '';
+  for (let i = 2; i <= selectedLevel; i++) {
+    const L = B_LEVELS[i];
+    if (!L) continue;
+    if (L.blue)   blueTiles.push(...L.blue);
+    if (L.yellow) yellowTiles.push(...L.yellow);
+    if (L.red)    redTiles.push(...L.red);
+    if (L.green)  greenTiles.push(...L.green);
+    if (L.orange) orangeTiles.push(...L.orange);
+    if (L.purple) purpleTiles.push(...L.purple);
+  }
 
-      const lessonTilesContainer = document.getElementById('lessonTiles');
-      blueTiles.forEach(text => lessonTilesContainer.appendChild(createTile(text, 'blue', 'tray')));
-      yellowTiles.forEach(text => lessonTilesContainer.appendChild(createTile(text, 'yellow', 'tray')));
+  // unique + sort for stability
+  blueTiles   = getUniqueSorted(blueTiles);
+  yellowTiles = getUniqueSorted(yellowTiles);
+  redTiles    = getUniqueSorted(redTiles);
+  greenTiles  = getUniqueSorted(greenTiles);
+  orangeTiles = getUniqueSorted(orangeTiles);
+  purpleTiles = getUniqueSorted(purpleTiles);
 
-      const drawers = {
-        units:    { elem: document.getElementById('drawer-units'),    tiles: redTiles,    color: 'red',    container: document.getElementById('wordUnits') },
-        suffixes: { elem: document.getElementById('drawer-suffixes'), tiles: greenTiles,  color: 'green',  container: document.getElementById('affixes') },
-        prefixes: { elem: document.getElementById('drawer-prefixes'), tiles: orangeTiles, color: 'orange', container: document.getElementById('prefixes') },
-        roots:    { elem: document.getElementById('drawer-roots'),    tiles: purpleTiles, color: 'purple', container: document.getElementById('latin') }
-      };
+  // clear all containers
+  const lessonTilesEl = document.getElementById('lessonTiles');
+  const wordUnitsEl   = document.getElementById('wordUnits');
+  const affixesEl     = document.getElementById('affixes');
+  const prefixesEl    = document.getElementById('prefixes');
+  const latinEl       = document.getElementById('latin');
+  lessonTilesEl.innerHTML = '';
+  wordUnitsEl.innerHTML   = '';
+  affixesEl.innerHTML     = '';
+  prefixesEl.innerHTML    = '';
+  latinEl.innerHTML       = '';
 
-      for (const key in drawers) {
-        const d = drawers[key];
-        if (d.tiles.length > 0) {
-          d.elem.classList.remove('hidden');
-          d.tiles.forEach(text => d.container.appendChild(createTile(text, d.color, 'tray')));
-        } else {
-          d.elem.classList.add('hidden');
-          d.container.classList.remove('open');
-          const arrow = d.elem.querySelector('.arrow'); if (arrow) arrow.textContent = '▼';
-        }
-      }
+  // ----- alphabet row (single letters only, strict a→z, mixed colors) -----
+  const combinedBW   = [...blueTiles, ...yellowTiles];
+  const singlesAtoZ  = [...new Set(combinedBW.filter(t => t.length === 1))].sort((a,b)=>a.localeCompare(b));
+  const othersByLen  = getUniqueSorted(combinedBW.filter(t => t.length > 1));
+
+  const alphaRow = document.createElement('div');
+  alphaRow.className = 'tile-row';
+  singlesAtoZ.forEach(ch => {
+    const color = yellowTiles.includes(ch) ? 'yellow' : 'blue';
+    alphaRow.appendChild(createTile(ch, color, 'tray'));
+  });
+
+  // ----- remaining blue/yellow graphemes (digraphs, vowel teams, etc.) -----
+  const graphemeRow = document.createElement('div');
+  graphemeRow.className = 'tile-row';
+  othersByLen.forEach(txt => {
+    const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
+    graphemeRow.appendChild(createTile(txt, color, 'tray'));
+  });
+
+  lessonTilesEl.appendChild(alphaRow);
+  lessonTilesEl.appendChild(graphemeRow);
+
+  // ----- drawers (unchanged behavior) -----
+  const drawers = {
+    units:    { elem: document.getElementById('drawer-units'),    tiles: redTiles,    color: 'red',    container: wordUnitsEl },
+    suffixes: { elem: document.getElementById('drawer-suffixes'), tiles: greenTiles,  color: 'green',  container: affixesEl },
+    prefixes: { elem: document.getElementById('drawer-prefixes'), tiles: orangeTiles, color: 'orange', container: prefixesEl },
+    roots:    { elem: document.getElementById('drawer-roots'),    tiles: purpleTiles, color: 'purple', container: latinEl }
+  };
+
+  for (const key in drawers) {
+    const d = drawers[key];
+    if (d.tiles.length > 0) {
+      d.elem.classList.remove('hidden');
+      d.tiles.forEach(text => d.container.appendChild(createTile(text, d.color, 'tray')));
+    } else {
+      d.elem.classList.add('hidden');
+      d.container.classList.remove('open');
+      const arrow = d.elem.querySelector('.arrow');
+      if (arrow) arrow.textContent = '▼';
     }
+  }
+}
+
 
     function renderWordPane() {
       const wordPane = document.getElementById('wordPane');
