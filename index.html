@@ -178,34 +178,34 @@
             
             <div class="drawer">
                 <button class="drawer-header" data-drawer="wordUnits">
-                    <span>Word Units</span>
+                    <span>Glued Sounds & Units</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content" id="wordUnits"></div>
+                <div class="drawer-content tile-row" id="wordUnits"></div>
             </div>
             
             <div class="drawer">
                 <button class="drawer-header" data-drawer="affixes">
-                    <span>Affixes</span>
+                    <span>Suffixes</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content" id="affixes"></div>
+                <div class="drawer-content tile-row" id="affixes"></div>
             </div>
             
             <div class="drawer">
                 <button class="drawer-header" data-drawer="prefixes">
-                    <span>Prefixes</span>
+                    <span>Prefixes & VCE Units</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content" id="prefixes"></div>
+                <div class="drawer-content tile-row" id="prefixes"></div>
             </div>
             
             <div class="drawer">
                 <button class="drawer-header" data-drawer="latin">
-                    <span>Latin</span>
+                    <span>Latin Prefixes & Roots</span>
                     <span class="arrow">▼</span>
                 </button>
-                <div class="drawer-content" id="latin"></div>
+                <div class="drawer-content tile-row" id="latin"></div>
             </div>
         </div>
     </div>
@@ -300,8 +300,18 @@
         
         function renderWordPane() {
             const wordPane = document.getElementById('wordPane');
+            const hint = wordPane.querySelector('.hint'); // Get the hint element
+            
             const existingTiles = wordPane.querySelectorAll('.word-pane-tile');
             existingTiles.forEach(tile => tile.remove());
+            
+            // --- Hide or show hint based on if tiles exist ---
+            if (tiles.length > 0) {
+                hint.style.display = 'none';
+            } else {
+                hint.style.display = 'block';
+            }
+            // -------------------------------------------------
             
             tiles.forEach(tile => {
                 if (draggedGroup.find(t => t.id === tile.id)) return;
