@@ -102,28 +102,22 @@
     const SNAP_DISTANCE = 10;
 
     // Tap vs drag thresholds
-    const DRAG_START_PX = 8;      // move > 8px => drag
-    const TAP_MAX_TIME_MS = 250;  // up to 250ms => tap
-    const TAP_MAX_MOVE_PX = 6;    // <6px movement => tap
+    const DRAG_START_PX = 8;
+    const TAP_MAX_TIME_MS = 250;
+    const TAP_MAX_MOVE_PX = 6;
 
     // Minimal grapheme=>"sound" strings to drive speechSynthesis.
-    // Replace these values with short audio files if you want true phonemes (recommended for instruction).
     const PHONEME_MAP = {
-      // Short vowels
       a: "ă", e: "ĕ", i: "ĭ", o: "ŏ", u: "ŭ",
-      // Common digraphs & units
       ch: "ch", sh: "sh", th: "th", wh: "hw", ck: "k",
       ph: "f", tch: "ch", dge: "j",
-      // R-controlled & teams (approximations)
       ar: "ar", or: "or", er: "ər", ir: "ər", ur: "ər", ear: "eer",
       ai: "ā", ay: "ā", ee: "ē", ea: "ē", oa: "ō", oe: "ō", ue: "o͞o", ew: "o͞o", ow: "ō",
       oi: "oi", oy: "oi", au: "aw", aw: "aw", oo: "o͝o", ou: "ow", igh: "ī",
-      // Foreign clusters
       ps: "s", rh: "r", mn: "n", wr: "r", kn: "n", gh: "g", gn: "n", que: "k", gu: "gw", gue: "g",
-      // Single consonants (student-friendly approximations)
       b: "b", c: "k", d: "d", f: "f", g: "g", h: "h", j: "j", k: "k", l: "l", m: "m", n: "n",
       p: "p", qu: "kw", r: "r", s: "s", t: "t", v: "v", w: "w", x: "ks", y: "y", z: "z",
-      y_vowel: "ĭ" // when you need vowel y, call with key 'y_vowel'
+      y_vowel: "ĭ"
     };
 
     // Barton-style level sets
@@ -145,7 +139,8 @@
     let draggedTile = null;         // ephemeral drag meta
     let draggedGroup = [];          // members moving together
     let dragOffset = { x: 0, y: 0 };
-    let gesture = null;             // tracks tap vs drag decisions
+    let gesture = null;             // tap vs drag
+    let dragStartRowY = null;       // row y of the main tile at drag start (for regrouping)
 
     // ====== UTIL ======
     function getFontSize(text) {
@@ -160,16 +155,34 @@
       return [...new Set(arr)].sort((a, b) => (a.length === b.length ? a.localeCompare(b) : a.length - b.length));
     }
 
-    // Freeze the drag group using existing grouping, not proximity.
-    function getContiguousGroup(main) {
-      // If never grouped (no snap history), move alone.
-      if (!main.groupId) return [main];
+    // Row helpers and exact-flush check (within 2px)
+    function sameRowY(y1, y2) { return Math.abs(y1 - y2) < TILE_SIZE / 2; }
+    function areFlush(a, b, tol = 2) { return Math.abs(a.x + TILE_SIZE - b.x) <= tol; }
 
-      // Only tiles sharing the same groupId move with the main tile.
+    // Recompute groupIds for the row around a given y
+    function recomputeGroupsAround(rowY) {
+      const row = tiles.filter(t => sameRowY(t.y, rowY)).sort((a,b) => a.x - b.x);
+      let i = 0;
+      while (i < row.length) {
+        let j = i + 1;
+        while (j < row.length && areFlush(row[j-1], row[j])) j++;
+        const seg = row.slice(i, j);
+        if (seg.length === 1) {
+          seg[0].groupId = null; // singles move alone
+        } else {
+          const base = seg[0].groupId || seg[0].id;
+          for (const t of seg) t.groupId = base;
+        }
+        i = j;
+      }
+    }
+
+    // Freeze the drag group using current groupIds.
+    function getContiguousGroup(main) {
+      if (!main.groupId) return [main];
       const row = tiles
         .filter(t => t.groupId === main.groupId)
         .sort((a, b) => a.x - b.x);
-
       const idx = row.findIndex(t => t.id === main.id);
       if (idx === -1) return [main];
       return row.slice();
@@ -182,7 +195,6 @@
       const key = (grapheme === 'y' && opts.vowelY) ? 'y_vowel' : grapheme;
       const sound = PHONEME_MAP[key];
       if (!sound) return;
-
       if ('speechSynthesis' in window) {
         const u = new SpeechSynthesisUtterance(sound);
         u.lang = 'en-US';
@@ -212,7 +224,6 @@
     function renderTray() {
       const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
 
-      // collect sets for this level (up through selected)
       blueTiles = [];
       yellowTiles = [];
       redTiles = [];
@@ -231,7 +242,6 @@
         if (L.purple) purpleTiles.push(...L.purple);
       }
 
-      // unique + sort for stability
       blueTiles   = getUniqueSorted(blueTiles);
       yellowTiles = getUniqueSorted(yellowTiles);
       redTiles    = getUniqueSorted(redTiles);
@@ -239,7 +249,6 @@
       orangeTiles = getUniqueSorted(orangeTiles);
       purpleTiles = getUniqueSorted(purpleTiles);
 
-      // clear all containers
       const lessonTilesEl = document.getElementById('lessonTiles');
       const wordUnitsEl   = document.getElementById('wordUnits');
       const affixesEl     = document.getElementById('affixes');
@@ -251,22 +260,18 @@
       prefixesEl.innerHTML    = '';
       latinEl.innerHTML       = '';
 
-      // ----- alphabet row (A→Z with 'qu' in the 'q' slot; no standalone 'q') -----
+      // Alphabet row (A→Z with 'qu' occupying the q slot; no standalone 'q')
       const combinedBW  = [...blueTiles, ...yellowTiles];
-      const singlesSet  = new Set(combinedBW.filter(t => t.length === 1)); // a..z
+      const singlesSet  = new Set(combinedBW.filter(t => t.length === 1));
       const hasQU       = combinedBW.includes('qu');
-
-      // remove 'qu' from non-alphabet graphemes so it doesn't show twice
-      const othersByLen = getUniqueSorted(
-        combinedBW.filter(t => t.length > 1 && t !== 'qu')
-      );
+      const othersByLen = getUniqueSorted(combinedBW.filter(t => t.length > 1 && t !== 'qu'));
 
       const ALPHABET = Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i));
       const orderedSingles = [];
       for (const ch of ALPHABET) {
         if (ch === 'q') {
-          if (hasQU) orderedSingles.push('qu'); // place 'qu' where q belongs
-          continue; // never show a standalone 'q'
+          if (hasQU) orderedSingles.push('qu');
+          continue;
         }
         if (singlesSet.has(ch)) orderedSingles.push(ch);
       }
@@ -278,7 +283,6 @@
         alphaRow.appendChild(createTile(txt, color, 'tray'));
       });
 
-      // ----- remaining blue/yellow graphemes (digraphs, vowel teams, etc.) -----
       const graphemeRow = document.createElement('div');
       graphemeRow.className = 'tile-row';
       othersByLen.forEach(txt => {
@@ -289,7 +293,6 @@
       lessonTilesEl.appendChild(alphaRow);
       lessonTilesEl.appendChild(graphemeRow);
 
-      // ----- drawers (unchanged behavior) -----
       const drawers = {
         units:    { elem: document.getElementById('drawer-units'),    tiles: redTiles,    color: 'red',    container: wordUnitsEl },
         suffixes: { elem: document.getElementById('drawer-suffixes'), tiles: greenTiles,  color: 'green',  container: affixesEl },
@@ -319,7 +322,6 @@
       hint.style.display = tiles.length > 0 ? 'none' : 'block';
 
       tiles.forEach(tile => {
-        // Prevent ghost duplicates while dragging as a group
         if (draggedGroup.find(t => t.id === tile.id)) return;
 
         const tileEl = document.createElement('div');
@@ -342,25 +344,20 @@
       const nearby = [];
       tiles.forEach(tile => {
         if (tile.id === excludeId) return;
-        const sameRow = Math.abs(tile.y - y) < TILE_SIZE / 2;
-
-        if (sameRow) {
-          // Snap to RIGHT edge of a neighbor (we become right-adjacent)
+        if (sameRowY(tile.y, y)) {
           if (Math.abs((tile.x + TILE_SIZE) - x) < SNAP_DISTANCE) {
             nearby.push({ tile, edge: 'right', snapX: tile.x + TILE_SIZE, snapY: tile.y });
           }
-          // Snap to LEFT edge of a neighbor (we become left-adjacent)
           if (Math.abs(tile.x - (x + TILE_SIZE)) < SNAP_DISTANCE) {
             nearby.push({ tile, edge: 'left', snapX: tile.x - TILE_SIZE, snapY: tile.y });
           }
         }
       });
-      // Heuristic: prefer the closest horizontally
       nearby.sort((a, b) => Math.abs(a.snapX - x) - Math.abs(b.snapX - x));
       return nearby;
     }
 
-    // ====== POINTER HANDLERS (tap vs drag) ======
+    // ====== POINTER HANDLERS ======
     function onPointerStart(e, text, color, source) {
       e.preventDefault();
       e.stopPropagation();
@@ -379,7 +376,6 @@
         onMove: null, onEnd: null,
       };
 
-      // Only promote to drag once threshold is crossed.
       gesture.onMove = (ev) => {
         const p = ev.touches ? ev.touches[0] : ev;
         const dx = p.clientX - gesture.startX;
@@ -391,9 +387,7 @@
           gesture.moved = true;
           beginDrag(gesture, targetRect);
         }
-        if (gesture.moved) {
-          handleMove(ev);
-        }
+        if (gesture.moved) handleMove(ev);
       };
 
       gesture.onEnd = (ev) => {
@@ -402,14 +396,12 @@
         const totalMove = Math.hypot(p.clientX - gesture.startX, p.clientY - gesture.startY);
 
         if (!gesture.moved && dt <= TAP_MAX_TIME_MS && totalMove <= TAP_MAX_MOVE_PX) {
-          // Tap: play sound, no layout change.
           playPhoneme(text, { vowelY: (text === 'y' && isVowelYInScope()) });
           cleanupPointerListeners();
           gesture = null;
           return;
         }
 
-        // Otherwise, complete drag
         handleEnd(ev);
         cleanupPointerListeners();
         gesture = null;
@@ -442,24 +434,21 @@
           startX, startY
         };
         draggedGroup = [];
+        dragStartRowY = null;
       } else {
         const paneTile = tiles.find(t => t.id === source);
-        if (!paneTile) return; // stale
+        if (!paneTile) return;
         draggedTile = {
           ...paneTile,
           x: startX, y: startY,
           sourceType: 'pane',
           startX, startY
         };
-        // Freeze the group at drag start based on groupId only.
-        draggedGroup = getContiguousGroup(paneTile);
+        dragStartRowY = paneTile.y;
+        draggedGroup = getContiguousGroup(paneTile); // frozen group
       }
 
-      // set offset so the ghost stays under the pointer
-      dragOffset = {
-        x: startX - targetRect.left,
-        y: startY - targetRect.top
-      };
+      dragOffset = { x: startX - targetRect.left, y: startY - targetRect.top };
       updateDragVisual();
     }
 
@@ -471,7 +460,7 @@
       draggedTile.x = p.clientX;
       draggedTile.y = p.clientY;
 
-      // Do NOT rebuild draggedGroup during the move; it's frozen from beginDrag().
+      // no regrouping during move
       updateDragVisual();
     }
 
@@ -494,37 +483,36 @@
 
         if (draggedTile.sourceType === 'tray') {
           const nearby = findNearbyTiles(dropX, dropY, null);
-          let finalX = dropX, finalY = dropY, groupId = null;
+          let finalX = dropX, finalY = dropY;
           if (nearby.length > 0) {
             const closest = nearby[0];
             finalX = closest.snapX; finalY = closest.snapY;
-            groupId = closest.tile.groupId || closest.tile.id;
           }
           const newTile = {
             id: Date.now() + Math.random(),
             text: draggedTile.text,
             color: draggedTile.color,
             x: finalX, y: finalY,
-            groupId
+            groupId: null
           };
           tiles.push(newTile);
+          // After drop, recompute groups on that row
+          recomputeGroupsAround(finalY);
         } else {
           if (draggedGroup.length > 0) {
-            // Compute main's drop
             const main = draggedGroup.find(gt => gt.id === draggedTile.id);
             const mainDropX = p.clientX - paneRect.left - (draggedTile.startX - main.x);
             const mainDropY = p.clientY - paneRect.top  - (draggedTile.startY - main.y);
 
-            // Try snapping main
             const nearMain = findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
-            let snapAdj = { dx: 0, dy: 0, groupId: null };
+            let snapAdj = { dx: 0, dy: 0 };
             if (nearMain.length > 0) {
               const closest = nearMain[0];
               snapAdj.dx = closest.snapX - mainDropX;
               snapAdj.dy = closest.snapY - mainDropY;
-              snapAdj.groupId = closest.tile.groupId || closest.tile.id;
             }
 
+            // Move group
             tiles = tiles.map(t => {
               const inGroup = draggedGroup.some(gt => gt.id === t.id);
               if (!inGroup) return t;
@@ -536,20 +524,26 @@
               const newX = mainDropX + offX + snapAdj.dx;
               const newY = mainDropY + offY + snapAdj.dy;
 
-              return { ...t, x: newX, y: newY, groupId: snapAdj.groupId };
+              return { ...t, x: newX, y: newY, groupId: t.groupId ?? null };
             });
+
+            // Recompute groups on both the original row and the new row
+            if (dragStartRowY !== null) recomputeGroupsAround(dragStartRowY);
+            recomputeGroupsAround(mainDropY + snapAdj.dy);
           }
         }
       } else if (draggedTile.sourceType === 'pane') {
-        // Dropped outside pane: delete dragged group cleanly
+        // Dropped outside pane: delete dragged group cleanly and regroup origin row
         if (draggedGroup.length > 0) {
           const ids = new Set(draggedGroup.map(t => t.id));
           tiles = tiles.filter(t => !ids.has(t.id));
+          if (dragStartRowY !== null) recomputeGroupsAround(dragStartRowY);
         }
       }
 
       draggedTile = null;
       draggedGroup = [];
+      dragStartRowY = null;
       clearDragVisual();
       renderWordPane();
     }
@@ -596,7 +590,6 @@
 
     // ====== HELPERS ======
     function isVowelYInScope() {
-      // crude heuristic: if yellow 'y' is currently offered in lesson, treat taps of 'y' as vowel-y
       const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
       if (selectedLevel < 6) return false;
       const lvl6 = B_LEVELS[6];
