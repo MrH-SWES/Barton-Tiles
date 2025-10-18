@@ -239,28 +239,44 @@ function renderTray() {
   prefixesEl.innerHTML    = '';
   latinEl.innerHTML       = '';
 
-  // ----- alphabet row (single letters only, strict a→z, mixed colors) -----
-  const combinedBW   = [...blueTiles, ...yellowTiles];
-  const singlesAtoZ  = [...new Set(combinedBW.filter(t => t.length === 1))].sort((a,b)=>a.localeCompare(b));
-  const othersByLen  = getUniqueSorted(combinedBW.filter(t => t.length > 1));
+// ----- alphabet row (A→Z with 'qu' in the 'q' slot; no standalone 'q') -----
+const combinedBW  = [...blueTiles, ...yellowTiles];
+const singlesSet  = new Set(combinedBW.filter(t => t.length === 1)); // a..z
+const hasQU       = combinedBW.includes('qu');
 
-  const alphaRow = document.createElement('div');
-  alphaRow.className = 'tile-row';
-  singlesAtoZ.forEach(ch => {
-    const color = yellowTiles.includes(ch) ? 'yellow' : 'blue';
-    alphaRow.appendChild(createTile(ch, color, 'tray'));
-  });
+// remove 'qu' from non-alphabet graphemes so it doesn't show twice
+const othersByLen = getUniqueSorted(
+  combinedBW.filter(t => t.length > 1 && t !== 'qu')
+);
 
-  // ----- remaining blue/yellow graphemes (digraphs, vowel teams, etc.) -----
-  const graphemeRow = document.createElement('div');
-  graphemeRow.className = 'tile-row';
-  othersByLen.forEach(txt => {
-    const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
-    graphemeRow.appendChild(createTile(txt, color, 'tray'));
-  });
+const ALPHABET = Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i));
+const orderedSingles = [];
+for (const ch of ALPHABET) {
+  if (ch === 'q') {
+    if (hasQU) orderedSingles.push('qu'); // place 'qu' where q belongs
+    continue; // never show a standalone 'q'
+  }
+  if (singlesSet.has(ch)) orderedSingles.push(ch);
+}
 
-  lessonTilesEl.appendChild(alphaRow);
-  lessonTilesEl.appendChild(graphemeRow);
+const alphaRow = document.createElement('div');
+alphaRow.className = 'tile-row';
+orderedSingles.forEach(txt => {
+  const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
+  alphaRow.appendChild(createTile(txt, color, 'tray'));
+});
+
+// ----- remaining blue/yellow graphemes (digraphs, vowel teams, etc.) -----
+const graphemeRow = document.createElement('div');
+graphemeRow.className = 'tile-row';
+othersByLen.forEach(txt => {
+  const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
+  graphemeRow.appendChild(createTile(txt, color, 'tray'));
+});
+
+lessonTilesEl.appendChild(alphaRow);
+lessonTilesEl.appendChild(graphemeRow);
+
 
   // ----- drawers (unchanged behavior) -----
   const drawers = {
