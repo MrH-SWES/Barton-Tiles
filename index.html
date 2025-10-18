@@ -160,6 +160,30 @@
       return [...new Set(arr)].sort((a, b) => (a.length === b.length ? a.localeCompare(b) : a.length - b.length));
     }
 
+    function getContiguousGroup(main, tol = 2) {
+  // tiles exactly touching main on this row at drag start
+  const row = tiles
+    .filter(t => Math.abs(t.y - main.y) < TILE_SIZE / 2)
+    .sort((a,b)=>a.x - b.x);
+
+  const idx = row.findIndex(t => t.id === main.id);
+  const group = [row[idx]];
+
+  // grow left while edges are flush
+  let i = idx - 1;
+  while (i >= 0 && Math.abs(row[i].x + TILE_SIZE - row[i+1].x) <= tol) {
+    group.unshift(row[i]);
+    i--;
+  }
+  // grow right while edges are flush
+  i = idx + 1;
+  while (i < row.length && Math.abs(row[i-1].x + TILE_SIZE - row[i].x) <= tol) {
+    group.push(row[i]);
+    i++;
+  }
+  return group;
+}
+
     function within(px, threshold) { return Math.abs(px) <= threshold; }
 
     // ====== AUDIO (placeholder: speech synthesis) ======
