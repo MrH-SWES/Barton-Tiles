@@ -160,35 +160,25 @@
       return [...new Set(arr)].sort((a, b) => (a.length === b.length ? a.localeCompare(b) : a.length - b.length));
     }
 
-    function getContiguousGroup(main, tol = 2) {
-  // tiles exactly touching main on this row at drag start
-  const row = tiles
-    .filter(t => Math.abs(t.y - main.y) < TILE_SIZE / 2)
-    .sort((a,b)=>a.x - b.x);
+    // Freeze the drag group using existing grouping, not proximity.
+    function getContiguousGroup(main) {
+      // If never grouped (no snap history), move alone.
+      if (!main.groupId) return [main];
 
-  const idx = row.findIndex(t => t.id === main.id);
-  const group = [row[idx]];
+      // Only tiles sharing the same groupId move with the main tile.
+      const row = tiles
+        .filter(t => t.groupId === main.groupId)
+        .sort((a, b) => a.x - b.x);
 
-  // grow left while edges are flush
-  let i = idx - 1;
-  while (i >= 0 && Math.abs(row[i].x + TILE_SIZE - row[i+1].x) <= tol) {
-    group.unshift(row[i]);
-    i--;
-  }
-  // grow right while edges are flush
-  i = idx + 1;
-  while (i < row.length && Math.abs(row[i-1].x + TILE_SIZE - row[i].x) <= tol) {
-    group.push(row[i]);
-    i++;
-  }
-  return group;
-}
+      const idx = row.findIndex(t => t.id === main.id);
+      if (idx === -1) return [main];
+      return row.slice();
+    }
 
     function within(px, threshold) { return Math.abs(px) <= threshold; }
 
     // ====== AUDIO (placeholder: speech synthesis) ======
     function playPhoneme(grapheme, opts = {}) {
-      // Allow forcing vowel-y vs consonant-y
       const key = (grapheme === 'y' && opts.vowelY) ? 'y_vowel' : grapheme;
       const sound = PHONEME_MAP[key];
       if (!sound) return;
@@ -196,12 +186,11 @@
       if ('speechSynthesis' in window) {
         const u = new SpeechSynthesisUtterance(sound);
         u.lang = 'en-US';
-        u.rate = 0.8;   // a touch slower helps articulation
+        u.rate = 0.8;
         u.pitch = 1.0;
-        window.speechSynthesis.cancel(); // stop any queued
+        window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
       }
-      // If you add real audio: new Audio('data:audio/wav;base64,...').play();
     }
 
     // ====== DOM BUILDERS ======
@@ -214,116 +203,113 @@
       tile.dataset.color = color;
       tile.dataset.source = source;
 
-      // Unified pointer start -> resolves tap vs drag later
       tile.addEventListener('mousedown', (e) => onPointerStart(e, text, color, source));
       tile.addEventListener('touchstart', (e) => onPointerStart(e, text, color, source), { passive: false });
 
       return tile;
     }
 
-function renderTray() {
-  const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
+    function renderTray() {
+      const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
 
-  // collect sets for this level (up through selected)
-  blueTiles = [];
-  yellowTiles = [];
-  redTiles = [];
-  greenTiles = [];
-  orangeTiles = [];
-  purpleTiles = [];
+      // collect sets for this level (up through selected)
+      blueTiles = [];
+      yellowTiles = [];
+      redTiles = [];
+      greenTiles = [];
+      orangeTiles = [];
+      purpleTiles = [];
 
-  for (let i = 2; i <= selectedLevel; i++) {
-    const L = B_LEVELS[i];
-    if (!L) continue;
-    if (L.blue)   blueTiles.push(...L.blue);
-    if (L.yellow) yellowTiles.push(...L.yellow);
-    if (L.red)    redTiles.push(...L.red);
-    if (L.green)  greenTiles.push(...L.green);
-    if (L.orange) orangeTiles.push(...L.orange);
-    if (L.purple) purpleTiles.push(...L.purple);
-  }
+      for (let i = 2; i <= selectedLevel; i++) {
+        const L = B_LEVELS[i];
+        if (!L) continue;
+        if (L.blue)   blueTiles.push(...L.blue);
+        if (L.yellow) yellowTiles.push(...L.yellow);
+        if (L.red)    redTiles.push(...L.red);
+        if (L.green)  greenTiles.push(...L.green);
+        if (L.orange) orangeTiles.push(...L.orange);
+        if (L.purple) purpleTiles.push(...L.purple);
+      }
 
-  // unique + sort for stability
-  blueTiles   = getUniqueSorted(blueTiles);
-  yellowTiles = getUniqueSorted(yellowTiles);
-  redTiles    = getUniqueSorted(redTiles);
-  greenTiles  = getUniqueSorted(greenTiles);
-  orangeTiles = getUniqueSorted(orangeTiles);
-  purpleTiles = getUniqueSorted(purpleTiles);
+      // unique + sort for stability
+      blueTiles   = getUniqueSorted(blueTiles);
+      yellowTiles = getUniqueSorted(yellowTiles);
+      redTiles    = getUniqueSorted(redTiles);
+      greenTiles  = getUniqueSorted(greenTiles);
+      orangeTiles = getUniqueSorted(orangeTiles);
+      purpleTiles = getUniqueSorted(purpleTiles);
 
-  // clear all containers
-  const lessonTilesEl = document.getElementById('lessonTiles');
-  const wordUnitsEl   = document.getElementById('wordUnits');
-  const affixesEl     = document.getElementById('affixes');
-  const prefixesEl    = document.getElementById('prefixes');
-  const latinEl       = document.getElementById('latin');
-  lessonTilesEl.innerHTML = '';
-  wordUnitsEl.innerHTML   = '';
-  affixesEl.innerHTML     = '';
-  prefixesEl.innerHTML    = '';
-  latinEl.innerHTML       = '';
+      // clear all containers
+      const lessonTilesEl = document.getElementById('lessonTiles');
+      const wordUnitsEl   = document.getElementById('wordUnits');
+      const affixesEl     = document.getElementById('affixes');
+      const prefixesEl    = document.getElementById('prefixes');
+      const latinEl       = document.getElementById('latin');
+      lessonTilesEl.innerHTML = '';
+      wordUnitsEl.innerHTML   = '';
+      affixesEl.innerHTML     = '';
+      prefixesEl.innerHTML    = '';
+      latinEl.innerHTML       = '';
 
-// ----- alphabet row (A→Z with 'qu' in the 'q' slot; no standalone 'q') -----
-const combinedBW  = [...blueTiles, ...yellowTiles];
-const singlesSet  = new Set(combinedBW.filter(t => t.length === 1)); // a..z
-const hasQU       = combinedBW.includes('qu');
+      // ----- alphabet row (A→Z with 'qu' in the 'q' slot; no standalone 'q') -----
+      const combinedBW  = [...blueTiles, ...yellowTiles];
+      const singlesSet  = new Set(combinedBW.filter(t => t.length === 1)); // a..z
+      const hasQU       = combinedBW.includes('qu');
 
-// remove 'qu' from non-alphabet graphemes so it doesn't show twice
-const othersByLen = getUniqueSorted(
-  combinedBW.filter(t => t.length > 1 && t !== 'qu')
-);
+      // remove 'qu' from non-alphabet graphemes so it doesn't show twice
+      const othersByLen = getUniqueSorted(
+        combinedBW.filter(t => t.length > 1 && t !== 'qu')
+      );
 
-const ALPHABET = Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i));
-const orderedSingles = [];
-for (const ch of ALPHABET) {
-  if (ch === 'q') {
-    if (hasQU) orderedSingles.push('qu'); // place 'qu' where q belongs
-    continue; // never show a standalone 'q'
-  }
-  if (singlesSet.has(ch)) orderedSingles.push(ch);
-}
+      const ALPHABET = Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i));
+      const orderedSingles = [];
+      for (const ch of ALPHABET) {
+        if (ch === 'q') {
+          if (hasQU) orderedSingles.push('qu'); // place 'qu' where q belongs
+          continue; // never show a standalone 'q'
+        }
+        if (singlesSet.has(ch)) orderedSingles.push(ch);
+      }
 
-const alphaRow = document.createElement('div');
-alphaRow.className = 'tile-row';
-orderedSingles.forEach(txt => {
-  const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
-  alphaRow.appendChild(createTile(txt, color, 'tray'));
-});
+      const alphaRow = document.createElement('div');
+      alphaRow.className = 'tile-row';
+      orderedSingles.forEach(txt => {
+        const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
+        alphaRow.appendChild(createTile(txt, color, 'tray'));
+      });
 
-// ----- remaining blue/yellow graphemes (digraphs, vowel teams, etc.) -----
-const graphemeRow = document.createElement('div');
-graphemeRow.className = 'tile-row';
-othersByLen.forEach(txt => {
-  const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
-  graphemeRow.appendChild(createTile(txt, color, 'tray'));
-});
+      // ----- remaining blue/yellow graphemes (digraphs, vowel teams, etc.) -----
+      const graphemeRow = document.createElement('div');
+      graphemeRow.className = 'tile-row';
+      othersByLen.forEach(txt => {
+        const color = yellowTiles.includes(txt) ? 'yellow' : 'blue';
+        graphemeRow.appendChild(createTile(txt, color, 'tray'));
+      });
 
-lessonTilesEl.appendChild(alphaRow);
-lessonTilesEl.appendChild(graphemeRow);
+      lessonTilesEl.appendChild(alphaRow);
+      lessonTilesEl.appendChild(graphemeRow);
 
+      // ----- drawers (unchanged behavior) -----
+      const drawers = {
+        units:    { elem: document.getElementById('drawer-units'),    tiles: redTiles,    color: 'red',    container: wordUnitsEl },
+        suffixes: { elem: document.getElementById('drawer-suffixes'), tiles: greenTiles,  color: 'green',  container: affixesEl },
+        prefixes: { elem: document.getElementById('drawer-prefixes'), tiles: orangeTiles, color: 'orange', container: prefixesEl },
+        roots:    { elem: document.getElementById('drawer-roots'),    tiles: purpleTiles, color: 'purple', container: latinEl }
+      };
 
-  // ----- drawers (unchanged behavior) -----
-  const drawers = {
-    units:    { elem: document.getElementById('drawer-units'),    tiles: redTiles,    color: 'red',    container: wordUnitsEl },
-    suffixes: { elem: document.getElementById('drawer-suffixes'), tiles: greenTiles,  color: 'green',  container: affixesEl },
-    prefixes: { elem: document.getElementById('drawer-prefixes'), tiles: orangeTiles, color: 'orange', container: prefixesEl },
-    roots:    { elem: document.getElementById('drawer-roots'),    tiles: purpleTiles, color: 'purple', container: latinEl }
-  };
-
-  for (const key in drawers) {
-    const d = drawers[key];
-    if (d.tiles.length > 0) {
-      d.elem.classList.remove('hidden');
-      d.tiles.forEach(text => d.container.appendChild(createTile(text, d.color, 'tray')));
-    } else {
-      d.elem.classList.add('hidden');
-      d.container.classList.remove('open');
-      const arrow = d.elem.querySelector('.arrow');
-      if (arrow) arrow.textContent = '▼';
+      for (const key in drawers) {
+        const d = drawers[key];
+        if (d.tiles.length > 0) {
+          d.elem.classList.remove('hidden');
+          d.tiles.forEach(text => d.container.appendChild(createTile(text, d.color, 'tray')));
+        } else {
+          d.elem.classList.add('hidden');
+          d.container.classList.remove('open');
+          const arrow = d.elem.querySelector('.arrow');
+          if (arrow) arrow.textContent = '▼';
+        }
+      }
     }
-  }
-}
-
 
     function renderWordPane() {
       const wordPane = document.getElementById('wordPane');
@@ -390,12 +376,10 @@ lessonTilesEl.appendChild(graphemeRow);
         moved: false,
         lastX: startX, lastY: startY,
         source, text, color,
-        // capture for tap detection
         onMove: null, onEnd: null,
       };
 
-      // INIT drag meta only when we confirm it's a drag (not immediately).
-      // This is the key change that stops "pane clicks deleting neighbors."
+      // Only promote to drag once threshold is crossed.
       gesture.onMove = (ev) => {
         const p = ev.touches ? ev.touches[0] : ev;
         const dx = p.clientX - gesture.startX;
@@ -418,8 +402,7 @@ lessonTilesEl.appendChild(graphemeRow);
         const totalMove = Math.hypot(p.clientX - gesture.startX, p.clientY - gesture.startY);
 
         if (!gesture.moved && dt <= TAP_MAX_TIME_MS && totalMove <= TAP_MAX_MOVE_PX) {
-          // Treat as TAP: play phoneme, do nothing to layout.
-          // If 'y' in yellow collection, prefer vowel-y approximation
+          // Tap: play sound, no layout change.
           playPhoneme(text, { vowelY: (text === 'y' && isVowelYInScope()) });
           cleanupPointerListeners();
           gesture = null;
@@ -468,8 +451,8 @@ lessonTilesEl.appendChild(graphemeRow);
           sourceType: 'pane',
           startX, startY
         };
-        // start with just this tile; group may expand as we move laterally
-        draggedGroup = [paneTile];
+        // Freeze the group at drag start based on groupId only.
+        draggedGroup = getContiguousGroup(paneTile);
       }
 
       // set offset so the ghost stays under the pointer
@@ -485,42 +468,10 @@ lessonTilesEl.appendChild(graphemeRow);
       e.preventDefault();
 
       const p = e.touches ? e.touches[0] : e;
-      const newX = p.clientX;
-      const newY = p.clientY;
+      draggedTile.x = p.clientX;
+      draggedTile.y = p.clientY;
 
-      draggedTile.x = newX;
-      draggedTile.y = newY;
-
-      // Build/adjust group for pane tiles when moving horizontally
-      if (draggedTile.sourceType === 'pane') {
-        const dx = newX - draggedTile.startX;
-        const dy = newY - draggedTile.startY;
-
-        if (Math.abs(dx) > 12 || Math.abs(dy) > 12) {
-          const currentTile = tiles.find(t => t.id === draggedTile.id);
-          if (currentTile) {
-            const sameLine = tiles
-              .filter(t => Math.abs(t.y - currentTile.y) < TILE_SIZE / 2)
-              .sort((a, b) => a.x - b.x);
-
-            const idx = sameLine.findIndex(t => t.id === currentTile.id);
-            const leftNeighbor  = sameLine[idx - 1];
-            const rightNeighbor = sameLine[idx + 1];
-
-            const touchingLeft  = !!leftNeighbor  && Math.abs(leftNeighbor.x + TILE_SIZE - currentTile.x) < 6;
-            const touchingRight = !!rightNeighbor && Math.abs(currentTile.x + TILE_SIZE - rightNeighbor.x) < 6;
-
-            if (dx < 0 && touchingLeft) {
-              draggedGroup = sameLine.slice(0, idx + 1); // drag left chunk
-            } else if (dx > 0 && touchingRight) {
-              draggedGroup = sameLine.slice(idx);        // drag right chunk
-            } else {
-              draggedGroup = [currentTile];
-            }
-          }
-        }
-      }
-
+      // Do NOT rebuild draggedGroup during the move; it's frozen from beginDrag().
       updateDragVisual();
     }
 
