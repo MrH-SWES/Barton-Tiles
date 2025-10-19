@@ -37,7 +37,7 @@
       opacity: 0.9;
       position: fixed;
       z-index: 1000;
-      pointer-events: none;   /* important on mobile */
+      pointer-events: none;
       will-change: transform;
     }
 
@@ -75,7 +75,7 @@
   <div id="app">
     <div id="wordPane">
       <button id="resetButton">Reset</button>
-      <div class="hint">Drag tiles here to build words. Tap to hear the sound.</div>
+      <div class="hint">Drag tiles here to build words. Tap to hear.</div>
     </div>
 
     <div id="tileTray">
@@ -113,8 +113,7 @@
 
       <div class="drawer" id="drawer-prefixes">
         <button class="drawer-header" data-drawer="prefixes">
-          <span>Prefixes & VCE Units (Orange)</span>
-          <span class="arrow">▼</span>
+          <span>Prefixes & VCE Units (Orange)</span><span class="arrow">▼</span>
         </button>
         <div class="drawer-content" id="prefixes"></div>
       </div>
@@ -127,25 +126,55 @@
       </div>
     </div>
   </div>
-<script>
+
+  <script>
     // ====== CONFIG ======
     const TILE_SIZE = 60;
 
-    // Touch-friendly snapping: slightly larger magnet on coarse pointers
+    // Touch-friendly snapping
     const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
 
-    // Seam insertion capture width (bigger target on touch)
+    // Seam insertion capture width
     const SEAM_CAPTURE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
 
-    // Drag thresholds (tighter for mouse/pen, looser for touch)
+    // Drag thresholds
     function dragThresholdFor(e) { return (e && e.pointerType === 'touch') ? 12 : 6; }
 
     // Tap detection
     const TAP_MAX_TIME_MS = 250;
     const TAP_MAX_MOVE_PX = 6;
 
-    // Minimal grapheme=>"sound" strings to drive speechSynthesis.
-    const PHONEME_MAP = {
+    // ====== AUDIO: files preferred for single grapheme taps (tray) ======
+    // Host your own audio files (same origin) if you have them; missing keys fall back to TTS.
+    const AUDIO_MAP = {
+      // example mappings; add the ones you actually host
+      "a": "/audio/a.mp3", "e": "/audio/e.mp3", "i": "/audio/i.mp3", "o": "/audio/o.mp3", "u": "/audio/u.mp3",
+      "b": "/audio/b.mp3", "c": "/audio/c.mp3", "d": "/audio/d.mp3", "f": "/audio/f.mp3", "g": "/audio/g.mp3",
+      "h": "/audio/h.mp3", "j": "/audio/j.mp3", "k": "/audio/k.mp3", "l": "/audio/l.mp3", "m": "/audio/m.mp3",
+      "n": "/audio/n.mp3", "p": "/audio/p.mp3", "qu": "/audio/qu.mp3", "r": "/audio/r.mp3", "s": "/audio/s.mp3",
+      "t": "/audio/t.mp3", "v": "/audio/v.mp3", "w": "/audio/w.mp3", "x": "/audio/x.mp3", "y": "/audio/y_consonant.mp3",
+      "z": "/audio/z.mp3",
+      "ch": "/audio/ch.mp3", "sh": "/audio/sh.mp3", "th": "/audio/th.mp3", "wh": "/audio/wh.mp3",
+      "ar": "/audio/ar.mp3", "or": "/audio/or.mp3", "er": "/audio/er.mp3", "ir": "/audio/ir.mp3", "ur": "/audio/ur.mp3",
+      "ai": "/audio/ai.mp3", "ay": "/audio/ay.mp3", "ee": "/audio/ee.mp3", "oa": "/audio/oa.mp3", "igh": "/audio/igh.mp3",
+      "y_vowel": "/audio/y_vowel.mp3"
+    };
+    const _audioCache = new Map();
+    function getAudio(graphemeKey) {
+      const url = AUDIO_MAP[graphemeKey];
+      if (!url) return null;
+      if (_audioCache.has(url)) return _audioCache.get(url);
+      const el = new Audio(url);
+      el.preload = "auto";
+      _audioCache.set(url, el);
+      return el;
+    }
+    window.addEventListener("load", () => {
+      ["a","e","i","o","u","ch","sh","th","qu"].forEach(k => { const el = getAudio(k); if (el) { try { el.load(); } catch(_){} } });
+    });
+
+    // TTS fallback map for single graphemes
+    const PHONEME_TTS = {
       a: "ă", e: "ĕ", i: "ĭ", o: "ŏ", u: "ŭ",
       ch: "ch", sh: "sh", th: "th", wh: "hw", ck: "k",
       ph: "f", tch: "ch", dge: "j",
@@ -158,7 +187,46 @@
       y_vowel: "ĭ"
     };
 
-    // Barton-style level sets
+    function speakTTS(text) {
+      if (!text) return;
+      if ("speechSynthesis" in window) {
+        try {
+          const u = new SpeechSynthesisUtterance(text);
+          u.lang = "en-US";
+          u.rate = 0.9;
+          u.pitch = 1.0;
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(u);
+        } catch(_) {}
+      }
+    }
+
+    function playPhoneme(grapheme, opts = {}) {
+      const key = (grapheme === 'y' && opts.vowelY) ? 'y_vowel' : grapheme;
+
+      const audio = getAudio(key);
+      if (audio) {
+        try {
+          _audioCache.forEach(a => { if (!a.paused && a !== audio) { try { a.pause(); a.currentTime = 0; } catch(_){} }});
+          audio.currentTime = 0;
+          audio.play().catch(() => speakTTS(PHONEME_TTS[key] || key));
+          return;
+        } catch(_) {}
+      }
+      const t = PHONEME_TTS[key];
+      speakTTS(t || key);
+    }
+
+    // ====== SYLLABLE/WORD TAPS: speak the full assembled text ======
+    function speakUnitForTileId(tileId) {
+      const t = tiles.find(x => x.id === tileId);
+      if (!t) return;
+      const chain = getGroupChain(t);     // contiguous by geometry
+      const text = chain.map(x => x.text).join('');
+      speakTTS(text);                      // let TTS realize syllable/word
+    }
+
+    // ====== LEVEL DATA ======
     const B_LEVELS = {
       2: { blue: ["b","c","d","f","g","h","j","k","l","m","n","p","qu","r","s","t","v","w","x","y","z","ch","ck","sh","th","wh"], yellow: ["a","e","i","o","u"] },
       3: { red: ["all","ang","ing","ong","ung","ank","ink","onk","unk","oll","old","olt","ost","ild","ind"] },
@@ -213,7 +281,7 @@
       }
     }
 
-    // Build the current contiguous chain purely by geometry (flush edges)
+    // Build the current contiguous chain by geometry
     function getGroupChain(main) {
       const row = tiles
         .filter(t => Math.abs(t.y - main.y) < TILE_SIZE / 2)
@@ -222,18 +290,16 @@
       const idx = row.findIndex(t => t.id === main.id);
       if (idx === -1) return [main];
 
-      // expand left while exactly flush
+      // expand left/right while edges are flush
       let L = idx;
       while (L - 1 >= 0 && Math.abs(row[L - 1].x + TILE_SIZE - row[L].x) <= 2) L--;
-
-      // expand right while exactly flush
       let R = idx;
       while (R + 1 < row.length && Math.abs(row[R].x + TILE_SIZE - row[R + 1].x) <= 2) R++;
 
       return row.slice(L, R + 1);
     }
 
-    // ====== SEAM INSERTION HELPERS ======
+    // ====== SEAM INSERTION ======
     function findSeamNear(dropX, dropY) {
       const row = tiles
         .filter(t => Math.abs(t.y - dropY) < TILE_SIZE / 2)
@@ -273,21 +339,6 @@
 
       // regroup the row so it becomes a single chain
       recomputeGroupsAround(rowY);
-    }
-
-    // ====== AUDIO (placeholder: speech synthesis) ======
-    function playPhoneme(grapheme, opts = {}) {
-      const key = (grapheme === 'y' && opts.vowelY) ? 'y_vowel' : grapheme;
-      const sound = PHONEME_MAP[key];
-      if (!sound) return;
-      if ('speechSynthesis' in window) {
-        const u = new SpeechSynthesisUtterance(sound);
-        u.lang = 'en-US';
-        u.rate = 0.8;
-        u.pitch = 1.0;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      }
     }
 
     // ====== DOM BUILDERS ======
@@ -382,7 +433,7 @@
           d.elem.classList.remove('hidden');
           d.tiles.forEach(text => d.container.appendChild(createTile(text, d.color, 'tray')));
         } else {
-d.elem.classList.add('hidden');
+          d.elem.classList.add('hidden');
           d.container.classList.remove('open');
           const arrow = d.elem.querySelector('.arrow');
           if (arrow) arrow.textContent = '▼';
@@ -437,7 +488,7 @@ d.elem.classList.add('hidden');
       e.preventDefault();
       e.stopPropagation();
 
-      // Restore capture now that we DON'T re-render at drag start
+      // Pointer capture keeps the stream alive; we do NOT re-render at drag start.
       if (e.currentTarget.setPointerCapture) {
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
       }
@@ -466,7 +517,6 @@ d.elem.classList.add('hidden');
         if (!gesture.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
           gesture.moved = true;
           beginDrag(gesture, targetRect, dx, dy);
-          // do NOT call renderWordPane() here
         }
         if (gesture.moved) handleMove(ev);
       };
@@ -476,7 +526,13 @@ d.elem.classList.add('hidden');
         const totalMove = Math.hypot(ev.clientX - gesture.startX, ev.clientY - gesture.startY);
 
         if (!gesture.moved && dt <= TAP_MAX_TIME_MS && totalMove <= TAP_MAX_MOVE_PX) {
-          playPhoneme(text, { vowelY: (text === 'y' && isVowelYInScope()) });
+          if (gesture.source !== 'tray') {
+            // Tap on pane tile: speak whole contiguous unit/syllable
+            speakUnitForTileId(gesture.source);
+          } else {
+            // Tap in tray: play single grapheme sound
+            playPhoneme(text, { vowelY: (text === 'y' && isVowelYInScope()) });
+          }
           cleanupPointerListeners();
           gesture = null;
           return;
@@ -521,9 +577,9 @@ d.elem.classList.add('hidden');
         if (!horizontal) {
           draggedGroup = [paneTile]; // vertical pull-out
         } else if (dx < 0) {
-          draggedGroup = chain.slice(0, idx + 1); // left side
+          draggedGroup = chain.slice(0, idx + 1); // left side including grabbed
         } else {
-          draggedGroup = chain.slice(idx);        // right side
+          draggedGroup = chain.slice(idx);        // right side including grabbed
         }
 
         draggedTile = { ...paneTile, x: startX, y: startY, sourceType: 'pane', startX, startY };
@@ -591,7 +647,6 @@ d.elem.classList.add('hidden');
               const seam = findSeamNear(dropX, dropY);
               if (seam) {
                 const only = draggedGroup[0];
-                // remove from old spot and regroup its origin row
                 const originY = only.y;
                 tiles = tiles.filter(t => t.id !== only.id);
                 if (dragStartRowY !== null) recomputeGroupsAround(originY);
@@ -612,7 +667,6 @@ d.elem.classList.add('hidden');
             const mainDropX = e.clientX - paneRect.left - (draggedTile.startX - main.x);
             const mainDropY = e.clientY - paneRect.top  - (draggedTile.startY - main.y);
 
-            // snap to neighbor chain
             const nearMain = findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
             let snapAdj = { dx: 0, dy: 0, groupId: null };
             if (nearMain.length > 0) {
@@ -633,7 +687,6 @@ d.elem.classList.add('hidden');
               const newX = mainDropX + offX + snapAdj.dx;
               const newY = mainDropY + offY + snapAdj.dy;
 
-              // inherit group if snapped, else clear for regroup
               return { ...t, x: newX, y: newY, groupId: snapAdj.groupId || null };
             });
 
@@ -676,7 +729,7 @@ d.elem.classList.add('hidden');
           ghost.textContent = tile.text;
           ghost.style.fontSize = getFontSize(tile.text);
 
-          // Anchor and move with transform
+          // anchor and move with transform
           ghost.style.left = '0px';
           ghost.style.top  = '0px';
           const gx = tile.x + dx + paneRect.left;
@@ -692,7 +745,6 @@ d.elem.classList.add('hidden');
         ghost.textContent = draggedTile.text;
         ghost.style.fontSize = getFontSize(draggedTile.text);
 
-        // Anchor and move with transform
         ghost.style.left = '0px';
         ghost.style.top  = '0px';
         const gx = draggedTile.x - dragOffset.x;
@@ -707,7 +759,8 @@ d.elem.classList.add('hidden');
     function clearDragVisual() {
       document.querySelectorAll('[data-dragging="true"]').forEach(el => el.remove());
     }
-// ====== HELPERS ======
+
+    // ====== HELPERS ======
     function isVowelYInScope() {
       const selectedLevel = parseInt(document.getElementById('lessonSelect').value, 10);
       if (selectedLevel < 6) return false;
