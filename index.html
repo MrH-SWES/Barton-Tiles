@@ -2,192 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-  />
-  <title>Barton Reading Tile Board — Beta</title>
-  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Barton Reading Tile Board — Color Drawers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *{margin:0;padding:0;box-sizing:border-box}
     :root{
-      --bg: #e5e7eb;
-      --ink: #111827;
-      --tray: #3f3f46;
-      --tab: #6b7280;
-      --tab-dim: #9ca3af;
-      --tab-ink: #fff;
-      --shadow: rgba(0,0,0,.25);
+      --bg:#e5e7eb; --ink:#111827;
+      --tray:#3f3f46; --tab:#6b7280; --tab-dim:#9ca3af; --tab-ink:#fff;
+      --shadow:rgba(0,0,0,.25);
     }
+    body{font-family:'Lexend',sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;touch-action:manipulation}
 
-    body{
-      font-family: 'Lexend', sans-serif;
-      background: var(--bg);
-      color: var(--ink);
-      height: 100vh;
-      overflow: hidden;
-      touch-action: manipulation;
-    }
+    #app{position:relative;height:100%;width:100%}
 
-    #app{ position: relative; height: 100%; width: 100%; }
+    /* workspace leaves room for stacked drawers (max 60vh) */
+    #wordPane{position:absolute;inset:0 0 60vh 0;background:transparent;overflow:hidden}
+    .hint{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);color:#6b7280;font-size:18px;text-align:center;pointer-events:none}
 
-    #wordPane{
-      position: absolute;
-      inset: 0 0 240px 0;
-      background: transparent;
-      overflow: hidden;
-    }
+    .tile{width:60px;height:60px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
+    .tile:active{cursor:grabbing}
+    .tile.blue{background:#60a5fa}.tile.yellow{background:#fbbf24}.tile.red{background:#f87171}.tile.green{background:#4ade80}.tile.orange{background:#fb923c}.tile.purple{background:#a78bfa}
+    .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
+    .word-pane-tile{position:absolute}
 
-    .hint{
-      position: absolute;
-      left: 50%;
-      top: 46%;
-      transform: translate(-50%,-50%);
-      color: #6b7280;
-      font-size: 18px;
-      text-align: center;
-      pointer-events: none;
-    }
+    #controls{position:absolute;top:12px;left:12px;display:flex;gap:8px;z-index:10}
+    .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px var(--shadow)}
+    .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
-    .tile{
-      width: 60px;
-      height: 60px;
-      border: 2px solid #374151;
-      border-radius: 6px;
-      cursor: grab;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      user-select: none;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-      flex-shrink: 0;
-      touch-action: none;
-      background: white;
-    }
-    .tile:active{ cursor: grabbing; }
-    .tile.blue   { background-color: #60a5fa; }
-    .tile.yellow { background-color: #fbbf24; }
-    .tile.red    { background-color: #f87171; }
-    .tile.green  { background-color: #4ade80; }
-    .tile.orange { background-color: #fb923c; }
-    .tile.purple { background-color: #a78bfa; }
+    /* bottom dock supports stacked, multi-open drawers; capped at 60vh */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:60vh;pointer-events:none;z-index:20}
 
-    .tile.dragging{
-      position: fixed;
-      z-index: 1000;
-      opacity: .95;
-      pointer-events: none;
-      will-change: transform;
-      left: 0; top: 0;
-    }
+    /* two rows of tabs anchored to the very bottom */
+    .tabRows{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:40px 40px;gap:8px 10px;padding:10px 14px;pointer-events:auto}
+    .tab{background:var(--tab);border-radius:10px 10px 0 0;color:var(--tab-ink);display:flex;align-items:center;justify-content:center;font-weight:700;letter-spacing:.2px;box-shadow:0 -2px 6px rgba(0,0,0,.2),0 3px 8px var(--shadow);cursor:pointer;user-select:none}
+    .tab.dim{background:var(--tab-dim)}
+    .tab.disabled{opacity:.45;cursor:not-allowed}
 
-    .word-pane-tile{ position: absolute; }
-
-    #controls{
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      display: flex;
-      gap: 8px;
-      z-index: 10;
-    }
-    .btn{
-      background: #111827;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-weight: 700;
-      box-shadow: 0 2px 6px var(--shadow);
-    }
-    .btn.secondary{ background: #374151; }
-    .btn.danger{ background: #dc2626; }
-
-    /* fixed bottom trays */
-    #bottomDock{
-      position: absolute;
-      left: 0; right: 0; bottom: 0;
-      height: 240px;
-      pointer-events: none;
-      z-index: 20;
-    }
-
-    .drawerRow{
-      position: absolute;
-      left: 0; right: 0; bottom: 0;
-      display: flex;
-      gap: 10px;
-      padding: 10px 14px;
-      justify-content: flex-start;
-      pointer-events: auto;
-    }
-
-    .drawer{
-      position: relative;
-      flex: 0 0 140px;
-      width: 140px;
-    }
-    .drawer .tab{ width: 140px; }
-
-    .drawer.active{
-      flex: 1 1 auto;
-      width: 100%;
-    }
-
-    .tab{
-      position: absolute;
-      left: 0; right: 0; bottom: 0;
-      height: 40px;
-      background: var(--tab);
-      border-radius: 10px 10px 0 0;
-      color: var(--tab-ink);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      letter-spacing: .2px;
-      box-shadow: 0 -2px 6px rgba(0,0,0,.2), 0 3px 8px var(--shadow);
-      cursor: pointer;
-      user-select: none;
-      z-index: 2;
-    }
-    .tab.dim{ background: var(--tab-dim); }
-
+    /* drawer content panels are absolutely stacked above the tab rows */
     .drawerContent{
-      position: absolute;
-      left: 0; right: 0;
-      bottom: 40px;
-      background: var(--tray);
-      border-radius: 12px 12px 0 0;
-      padding: 10px 12px;
-      box-shadow: 0 -6px 12px rgba(0,0,0,.35);
-      overflow: hidden;
-      transform: translateY(100%);
-      max-height: 0;
-      transition: transform .25s ease, max-height .25s ease;
-      z-index: 3;
+      position:absolute;left:14px;right:14px;
+      background:var(--tray);border-radius:12px 12px 0 0;
+      padding:10px 12px;box-shadow:0 -6px 12px rgba(0,0,0,.35);
+      height:0;overflow:hidden;transform:translateY(100%);opacity:0;pointer-events:none;
+      transition:transform .22s ease,height .22s ease,opacity .22s ease;
     }
-    .drawer.open .drawerContent{
-      transform: translateY(0%);
-      max-height: 320px;
-      overflow: visible;
-    }
+    .drawerContent.open{opacity:1;pointer-events:auto;transform:translateY(0)}
 
-    .tile-row{
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
-      justify-content: flex-start;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      padding-bottom: 6px;
-    }
-    .tile{ flex: 0 0 auto; }
-
-    .legend{ color: #e5e7eb; font-size: 12px; margin: 4px 0 8px; text-align: center; }
+    .tile-row{display:flex;flex-wrap:nowrap;gap:8px;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+    .legend{color:#e5e7eb;font-size:12px;margin:0 0 6px;text-align:left}
   </style>
 </head>
 <body>
@@ -196,55 +59,52 @@
       <div class="hint">Drag tiles here to build words.</div>
       <div id="controls">
         <select id="lessonSelect" class="btn secondary">
-          <option value="2">Book 2</option>
-          <option value="3">Book 3</option>
-          <option value="4">Book 4</option>
-          <option value="5">Book 5</option>
-          <option value="6">Book 6</option>
-          <option value="7">Book 7</option>
-          <option value="8">Book 8</option>
-          <option value="9">Book 9</option>
-          <option value="10">Book 10</option>
+          <option value="2">Book 2</option><option value="3">Book 3</option><option value="4">Book 4</option>
+          <option value="5">Book 5</option><option value="6">Book 6</option><option value="7">Book 7</option>
+          <option value="8">Book 8</option><option value="9">Book 9</option><option value="10">Book 10</option>
         </select>
         <button id="resetButton" class="btn danger">Reset</button>
       </div>
     </div>
 
+    <!-- stacked drawers -->
     <div id="bottomDock">
-      <div class="drawerRow">
-        <div class="drawer" id="drawer-alphabet">
-          <div class="tab">Basic Tiles</div>
-          <div class="drawerContent">
-            <div class="legend">A–Z and graphemes</div>
-            <div class="tile-row" id="lessonTiles"></div>
-          </div>
-        </div>
-        <div class="drawer" id="drawer-units">
-          <div class="tab dim">Units</div>
-          <div class="drawerContent">
-            <div class="tile-row" id="wordUnits"></div>
-          </div>
-        </div>
-        <div class="drawer" id="drawer-affixes">
-          <div class="tab dim">Suffixes / Prefixes</div>
-          <div class="drawerContent">
-            <div class="tile-row" id="affixes"></div>
-            <div class="tile-row" id="prefixes" style="margin-top:10px;"></div>
-          </div>
-        </div>
-        <div class="drawer" id="drawer-roots">
-          <div class="tab dim">Greek / Latin Roots</div>
-          <div class="drawerContent">
-            <div class="tile-row" id="latin"></div>
-          </div>
-        </div>
+      <!-- content panels (stacked above tab rows) -->
+      <div id="panel-blue"   class="drawerContent"><div class="legend">Blue</div>   <div class="tile-row" id="row-blue"></div></div>
+      <div id="panel-yellow" class="drawerContent"><div class="legend">Yellow</div> <div class="tile-row" id="row-yellow"></div></div>
+      <div id="panel-red"    class="drawerContent"><div class="legend">Red</div>    <div class="tile-row" id="row-red"></div></div>
+      <div id="panel-green"  class="drawerContent"><div class="legend">Green</div>  <div class="tile-row" id="row-green"></div></div>
+      <div id="panel-orange" class="drawerContent"><div class="legend">Orange</div> <div class="tile-row" id="row-orange"></div></div>
+      <div id="panel-purple" class="drawerContent"><div class="legend">Purple</div> <div class="tile-row" id="row-purple"></div></div>
+
+      <!-- two rows of tabs at the bottom -->
+      <div class="tabRows">
+        <div class="tab" id="tab-blue">Blue</div>
+        <div class="tab" id="tab-yellow">Yellow</div>
+        <div class="tab" id="tab-red">Red</div>
+        <div class="tab" id="tab-green">Green</div>
+        <div class="tab" id="tab-orange">Orange</div>
+        <div class="tab" id="tab-purple">Purple</div>
       </div>
     </div>
   </div>
 
   <script>
-    // simplified data, snapping logic retained
+    // ====== CONFIG ======
     const TILE_SIZE = 60;
+
+    // touch-friendly thresholds
+    const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
+    const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
+    const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
+
+    const DRAWER_HEIGHT = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 140 : 120; // px
+    const TAB_ROWS_HEIGHT = 40*2 + 10 + 8; // two rows + padding + gap ≈ 98
+
+    function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
+    const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
+
+    // ====== LEVEL DATA ======
     const B_LEVELS = {
       2: { blue:["b","c","d","f","g","h","j","k","l","m","n","p","qu","r","s","t","v","w","x","y","z","ch","ck","sh","th","wh"], yellow:["a","e","i","o","u"] },
       3: { red:["all","ang","ing","ong","ung","ank","ink","onk","unk","oll","old","olt","ost","ild","ind"] },
@@ -256,36 +116,388 @@
       9: { blue:["ps","rh","mn","wr","kn","gh","gn","que","gu","gue"], yellow:["eau","our"], orange:["age"] },
       10:{ purple:["astro","auto","bio","chron","geo","graph","hydro","phon","tele","demo","fac","form","fort","fract","ject","jud","mal","mater","mit","mort","multi","pater","port","rupt","scrib","script","sect","sec","sent","spect","struct"] }
     };
-    let tiles=[];
-    function getFontSize(t){return t.length<=2?'24px':t.length<=3?'20px':t.length<=4?'16px':'14px';}
-    function setupDrawers(){
-      const drawers=document.querySelectorAll('.drawer');
-      drawers.forEach(d=>{
-        d.querySelector('.tab').addEventListener('click',()=>{
-          drawers.forEach(x=>x.classList.remove('open','active'));
-          d.classList.add('open','active');
+
+    // ====== STATE ======
+    let blueTiles=[], yellowTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
+    let tiles=[]; // tiles on the pane
+
+    // drag state
+    let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
+
+    // open panels stack (IDs in bottom-up order)
+    const OPEN_STACK = []; // e.g., ["panel-blue","panel-yellow",...]
+
+    // ====== UTIL ======
+    function getFontSize(text){
+      if(text.length<=2) return '24px';
+      if(text.length===3) return '20px';
+      if(text.length===4) return '16px';
+      if(text.length===5) return '14px';
+      return '12px';
+    }
+    function getUniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=> (a.length===b.length ? a.localeCompare(b) : a.length-b.length)); }
+    function sameRowY(y1,y2){ return Math.abs(y1-y2) < TILE_SIZE/2; }
+    function areFlush(a,b,tol=2){ return Math.abs(a.x + TILE_SIZE - b.x) <= tol; }
+
+    function recomputeGroupsAround(rowY){
+      const row=tiles.filter(t=>sameRowY(t.y,rowY)).sort((a,b)=>a.x-b.x);
+      let i=0;
+      while(i<row.length){
+        let j=i+1;
+        while(j<row.length && areFlush(row[j-1],row[j])) j++;
+        const seg=row.slice(i,j);
+        if(seg.length===1) seg[0].groupId=null;
+        else { const gid=seg[0].groupId || seg[0].id; seg.forEach(t=>t.groupId=gid); }
+        i=j;
+      }
+    }
+
+    function getGroupChain(main){
+      const row=tiles.filter(t=>sameRowY(t.y,main.y)).sort((a,b)=>a.x-b.x);
+      const idx=row.findIndex(t=>t.id===main.id); if(idx===-1) return [main];
+      let L=idx; while(L-1>=0 && areFlush(row[L-1],row[L])) L--;
+      let R=idx; while(R+1<row.length && areFlush(row[R],row[R+1])) R++;
+      return row.slice(L,R+1);
+    }
+
+    // ====== SEAM INSERTION ======
+    function findSeamNear(dropX, dropY){
+      const row=tiles.filter(t=>sameRowY(t.y, dropY)).sort((a,b)=>a.x-b.x);
+      for(let i=0;i<row.length-1;i++){
+        const L=row[i], R=row[i+1];
+        if(!areFlush(L,R)) continue;
+        const seamX=L.x + TILE_SIZE;
+        if(Math.abs(dropX - seamX) <= SEAM_CAPTURE){
+          return { left:L, right:R, seamX, rowY:L.y };
+        }
+      }
+      return null;
+    }
+
+    function insertAtSeam(newTileData, seam){
+      const {right,rowY}=seam;
+      const rightSide=tiles.filter(t=>sameRowY(t.y,rowY) && t.x>=right.x).sort((a,b)=>a.x-b.x);
+      rightSide.forEach(t=>{ t.x += TILE_SIZE; });
+      const newTile={ id: Date.now()+Math.random(), text:newTileData.text, color:newTileData.color, x: right.x - TILE_SIZE, y: rowY, groupId:null };
+      tiles.push(newTile);
+      recomputeGroupsAround(rowY);
+    }
+
+    // ====== DRAWERS (stack layout) ======
+    const COLORS = ["blue","yellow","red","green","orange","purple"];
+    function togglePanel(color){
+      const pid = `panel-${color}`;
+      const panel = document.getElementById(pid);
+      if(panel.classList.contains('open')){
+        panel.classList.remove('open'); panel.style.height="0px";
+        const i=OPEN_STACK.indexOf(pid); if(i>=0) OPEN_STACK.splice(i,1);
+      }else{
+        panel.classList.add('open'); panel.style.height = `${DRAWER_HEIGHT}px`;
+        // move to top of stack
+        const i=OPEN_STACK.indexOf(pid); if(i>=0) OPEN_STACK.splice(i,1);
+        OPEN_STACK.push(pid);
+      }
+      relayoutPanels();
+    }
+
+    function relayoutPanels(){
+      // position each open panel bottom-up above the two tab rows
+      OPEN_STACK.forEach((pid, idx)=>{
+        const panel = document.getElementById(pid);
+        const bottomOffset = TAB_ROWS_HEIGHT + idx*(DRAWER_HEIGHT+8);
+        panel.style.bottom = `${bottomOffset}px`;
+      });
+      // any closed ones park just above tabs (but hidden via height/transform)
+      COLORS.forEach(c=>{
+        const p=document.getElementById(`panel-${c}`);
+        if(!p.classList.contains('open')) p.style.bottom = `${TAB_ROWS_HEIGHT}px`;
+      });
+    }
+
+    function bindTabs(){
+      COLORS.forEach(color=>{
+        const tab = document.getElementById(`tab-${color}`);
+        tab.addEventListener('click', ()=>{
+          const rowEl = document.getElementById(`row-${color}`);
+          const isEmpty = !rowEl || rowEl.children.length===0;
+          if(isEmpty){ /* keep tab visible but do nothing */ return; }
+          togglePanel(color);
         });
       });
-      drawers[0].classList.add('open','active');
     }
+
+    // ====== DOM BUILDERS ======
+    function createTile(text,color,source){
+      const el=document.createElement('div');
+      el.className=`tile ${color}`;
+      el.textContent=text;
+      el.style.fontSize=getFontSize(text);
+      el.dataset.text=text; el.dataset.color=color; el.dataset.source=source;
+      el.addEventListener('pointerdown',(e)=>onPointerStart(e,text,color,source));
+      return el;
+    }
+
     function renderTray(){
-      const lvl=parseInt(document.getElementById('lessonSelect').value);
-      const blue=[], yellow=[], red=[], green=[], orange=[], purple=[];
-      for(let i=2;i<=lvl;i++){const L=B_LEVELS[i];if(!L)continue;
-        if(L.blue)blue.push(...L.blue); if(L.yellow)yellow.push(...L.yellow);
-        if(L.red)red.push(...L.red); if(L.green)green.push(...L.green);
-        if(L.orange)orange.push(...L.orange); if(L.purple)purple.push(...L.purple);
+      const lvl=parseInt(document.getElementById('lessonSelect').value,10);
+      blueTiles=[]; yellowTiles=[]; redTiles=[]; greenTiles=[]; orangeTiles=[]; purpleTiles=[];
+      for(let i=2;i<=lvl;i++){
+        const L=B_LEVELS[i]; if(!L) continue;
+        if(L.blue)   blueTiles.push(...L.blue);
+        if(L.yellow) yellowTiles.push(...L.yellow);
+        if(L.red)    redTiles.push(...L.red);
+        if(L.green)  greenTiles.push(...L.green);
+        if(L.orange) orangeTiles.push(...L.orange);
+        if(L.purple) purpleTiles.push(...L.purple);
       }
-      const mk=(id,arr,col)=>{const el=document.getElementById(id);el.innerHTML='';arr.forEach(t=>{const d=document.createElement('div');d.className='tile '+col;d.textContent=t;d.style.fontSize=getFontSize(t);el.appendChild(d);});};
-      mk('lessonTiles',[...blue,...yellow],'blue');
-      mk('wordUnits',red,'red');
-      mk('affixes',green,'green');
-      mk('prefixes',orange,'orange');
-      mk('latin',purple,'purple');
+      blueTiles=getUniqueSorted(blueTiles);
+      yellowTiles=getUniqueSorted(yellowTiles);
+      redTiles=getUniqueSorted(redTiles);
+      greenTiles=getUniqueSorted(greenTiles);
+      orangeTiles=getUniqueSorted(orangeTiles);
+      purpleTiles=getUniqueSorted(purpleTiles);
+
+      const buckets = {
+        blue: blueTiles, yellow: yellowTiles, red: redTiles,
+        green: greenTiles, orange: orangeTiles, purple: purpleTiles
+      };
+
+      COLORS.forEach(color=>{
+        const row = document.getElementById(`row-${color}`);
+        const tab = document.getElementById(`tab-${color}`);
+        row.innerHTML='';
+        const arr = buckets[color];
+        if(!arr || arr.length===0){
+          tab.classList.add('disabled');
+        }else{
+          tab.classList.remove('disabled');
+          arr.forEach(txt=> row.appendChild(createTile(txt, color, 'tray')));
+        }
+      });
+
+      // close any open panels that became empty
+      [...OPEN_STACK].forEach(pid=>{
+        const color = pid.split('-')[1];
+        if(document.getElementById(`row-${color}`).children.length===0){
+          document.getElementById(pid).classList.remove('open');
+          document.getElementById(pid).style.height="0px";
+          OPEN_STACK.splice(OPEN_STACK.indexOf(pid),1);
+        }
+      });
+      relayoutPanels();
     }
-    document.getElementById('lessonSelect').addEventListener('change',renderTray);
-    document.getElementById('resetButton').addEventListener('click',()=>{tiles=[];document.querySelector('.hint').style.display='block';});
-    setupDrawers(); renderTray();
+
+    function renderWordPane(){
+      const wordPane=document.getElementById('wordPane');
+      const hint=wordPane.querySelector('.hint');
+      wordPane.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
+      hint.style.display = tiles.length>0 ? 'none' : 'block';
+
+      tiles.forEach(tile=>{
+        if(draggedGroup.find(t=>t.id===tile.id)) return;
+        const el=document.createElement('div');
+        el.className=`tile ${tile.color} word-pane-tile`;
+        el.textContent=tile.text;
+        el.style.fontSize=getFontSize(tile.text);
+        el.style.left=tile.x+'px';
+        el.style.top=tile.y+'px';
+        el.dataset.id=tile.id;
+        el.addEventListener('pointerdown',(e)=>onPointerStart(e,tile.text,tile.color,tile.id));
+        wordPane.appendChild(el);
+      });
+    }
+
+    // ====== SNAP (edge-touch with vertical overlap) ======
+    function findNearbyTiles(dropX, dropY, excludeId){
+      const dragLeft=dropX, dragRight=dropX+TILE_SIZE, dragTop=dropY, dragBottom=dropY+TILE_SIZE;
+      const candidates=[];
+      for(const tile of tiles){
+        if(tile.id===excludeId) continue;
+        const nbrLeft=tile.x, nbrRight=tile.x+TILE_SIZE, nbrTop=tile.y, nbrBottom=tile.y+TILE_SIZE;
+        const overlapY=Math.min(dragBottom,nbrBottom) - Math.max(dragTop,nbrTop);
+        if(overlapY<=0 || overlapY<MIN_VERTICAL_OVERLAP) continue;
+
+        const leftGap=Math.abs(nbrRight - dragLeft);
+        if(leftGap<=SNAP_DISTANCE){
+          candidates.push({ tile, edge:'right', snapX:nbrRight, snapY:tile.y });
+        }
+        const rightGap=Math.abs(nbrLeft - dragRight);
+        if(rightGap<=SNAP_DISTANCE){
+          candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY:tile.y });
+        }
+      }
+      candidates.sort((a,b)=>{
+        const ax=Math.abs(a.edge==='right'?(a.tile.x+TILE_SIZE)-dragLeft : a.tile.x - dragRight);
+        const bx=Math.abs(b.edge==='right'?(b.tile.x+TILE_SIZE)-dragLeft : b.tile.x - dragRight);
+        if(ax!==bx) return ax-bx;
+        const ay=Math.abs(a.snapY - dropY), by=Math.abs(b.snapY - dropY);
+        return ay - by;
+      });
+      return candidates;
+    }
+
+    // ====== POINTERS / DRAG ======
+    function onPointerStart(e,text,color,source){
+      if(e.isPrimary===false) return;
+      e.preventDefault(); e.stopPropagation();
+      if(e.currentTarget.setPointerCapture){ try{ e.currentTarget.setPointerCapture(e.pointerId);}catch(_){} }
+      const targetRect=e.currentTarget.getBoundingClientRect();
+      const startX=e.clientX, startY=e.clientY, tStart=performance.now();
+
+      gesture={ startX, startY, tStart, moved:false, lastX:startX, lastY:startY, source, text, color, pointerType:e.pointerType };
+      const onMove=(ev)=>{
+        const dx=ev.clientX - gesture.startX, dy=ev.clientY - gesture.startY;
+        gesture.lastX=ev.clientX; gesture.lastY=ev.clientY;
+        if(!gesture.moved && (Math.abs(dx)>dragThresholdFor(ev) || Math.abs(dy)>dragThresholdFor(ev))){
+          gesture.moved=true; beginDrag(gesture, targetRect, dx, dy);
+        }
+        if(gesture.moved) handleMove(ev);
+      };
+      const onEnd=(ev)=>{
+        const dt=performance.now()-gesture.tStart;
+        const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
+        if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){ cleanup(); return; }
+        handleEnd(ev); cleanup();
+      };
+      function cleanup(){ document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onEnd); document.removeEventListener('pointercancel',onEnd); gesture=null; }
+      document.addEventListener('pointermove',onMove,{passive:false});
+      document.addEventListener('pointerup',onEnd,{passive:false});
+      document.addEventListener('pointercancel',onEnd,{passive:false});
+    }
+
+    function beginDrag(g, targetRect, dx=0, dy=0){
+      const startX=g.startX, startY=g.startY, source=g.source;
+
+      if(source==='tray'){
+        draggedTile={ text:g.text, color:g.color, x:startX, y:startY, sourceType:'tray', startX, startY };
+        draggedGroup=[]; dragStartRowY=null;
+      } else {
+        const paneTile=tiles.find(t=>t.id===source); if(!paneTile) return;
+        const chain=getGroupChain(paneTile);
+        const idx=chain.findIndex(t=>t.id===paneTile.id);
+        const horizontal=Math.abs(dx) >= Math.abs(dy);
+        if(!horizontal) draggedGroup=[paneTile];
+        else if(dx<0)   draggedGroup=chain.slice(0, idx+1);
+        else            draggedGroup=chain.slice(idx);
+
+        draggedTile={ ...paneTile, x:startX, y:startY, sourceType:'pane', startX, startY };
+        dragStartRowY=paneTile.y;
+      }
+      dragOffset={ x:startX - targetRect.left, y:startY - targetRect.top };
+      updateDragVisual();
+    }
+
+    function handleMove(e){
+      if(!draggedTile) return;
+      e.preventDefault();
+      draggedTile.x=e.clientX; draggedTile.y=e.clientY;
+      updateDragVisual();
+    }
+
+    function handleEnd(e){
+      if(!draggedTile) return;
+      e.preventDefault();
+
+      const wordPane=document.getElementById('wordPane');
+      const paneRect=wordPane.getBoundingClientRect();
+
+      const inside = e.clientX>=paneRect.left && e.clientX<=paneRect.right && e.clientY>=paneRect.top && e.clientY<=paneRect.bottom;
+
+      if(inside){
+        let dropX=e.clientX - paneRect.left - dragOffset.x;
+        let dropY=e.clientY - paneRect.top  - dragOffset.y;
+
+        if(draggedTile.sourceType==='tray'){
+          const seam=findSeamNear(dropX, dropY);
+          if(seam){ insertAtSeam({text:draggedTile.text,color:draggedTile.color}, seam); finish(); return; }
+
+          const nearby=findNearbyTiles(dropX, dropY, null);
+          let finalX=dropX, finalY=dropY, groupId=null;
+          if(nearby.length>0){ const c=nearby[0]; finalX=c.snapX; finalY=c.snapY; groupId=c.tile.groupId || c.tile.id; }
+          const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:finalX, y:finalY, groupId };
+          tiles.push(newTile);
+          recomputeGroupsAround(finalY);
+        } else {
+          if(draggedGroup.length>0){
+            if(draggedGroup.length===1){
+              const seam=findSeamNear(dropX, dropY);
+              if(seam){
+                const only=draggedGroup[0]; const originY=only.y;
+                tiles=tiles.filter(t=>t.id!==only.id);
+                if(dragStartRowY!==null) recomputeGroupsAround(originY);
+                insertAtSeam({text:only.text,color:only.color}, seam);
+                finish(); return;
+              }
+            }
+            const main=draggedGroup.find(gt=>gt.id===draggedTile.id);
+            const mainDropX=e.clientX - paneRect.left - (draggedTile.startX - main.x);
+            const mainDropY=e.clientY - paneRect.top  - (draggedTile.startY - main.y);
+
+            const nearMain=findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
+            let snapAdj={dx:0,dy:0,groupId:null};
+            if(nearMain.length>0){ const c=nearMain[0]; snapAdj.dx=c.snapX-mainDropX; snapAdj.dy=c.snapY-mainDropY; snapAdj.groupId=c.tile.groupId||c.tile.id; }
+
+            tiles=tiles.map(t=>{
+              const inGroup=draggedGroup.some(gt=>gt.id===t.id);
+              if(!inGroup) return t;
+              const before=draggedGroup.find(gt=>gt.id===draggedTile.id);
+              const offX=t.x - before.x, offY=t.y - before.y;
+              return { ...t, x:mainDropX + offX + snapAdj.dx, y:mainDropY + offY + snapAdj.dy, groupId:snapAdj.groupId||null };
+            });
+            if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
+            recomputeGroupsAround(mainDropY + snapAdj.dy);
+          }
+        }
+      } else if(draggedTile.sourceType==='pane'){
+        if(draggedGroup.length>0){
+          const ids=new Set(draggedGroup.map(t=>t.id));
+          const originY=draggedGroup[0].y;
+          tiles=tiles.filter(t=>!ids.has(t.id));
+          if(dragStartRowY!==null) recomputeGroupsAround(originY);
+        }
+      }
+      finish();
+
+      function finish(){ draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); }
+    }
+
+    // ====== DRAG VISUALS ======
+    function updateDragVisual(){
+      clearDragVisual();
+      if(!draggedTile) return;
+      const paneRect=document.getElementById('wordPane').getBoundingClientRect();
+
+      if(draggedGroup.length>0){
+        const dx=draggedTile.x - draggedTile.startX, dy=draggedTile.y - draggedTile.startY;
+        draggedGroup.forEach(t=>{
+          const g=document.createElement('div');
+          g.className=`tile ${t.color} dragging`;
+          g.textContent=t.text;
+          g.style.fontSize=getFontSize(t.text);
+          const gx=t.x + dx + paneRect.left, gy=t.y + dy + paneRect.top;
+          g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+          g.dataset.dragging='true';
+          document.body.appendChild(g);
+        });
+      } else {
+        const g=document.createElement('div');
+        g.className=`tile ${draggedTile.color} dragging`;
+        g.textContent=draggedTile.text;
+        g.style.fontSize=getFontSize(draggedTile.text);
+        const gx=draggedTile.x - dragOffset.x, gy=draggedTile.y - dragOffset.y;
+        g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+        g.dataset.dragging='true';
+        document.body.appendChild(g);
+      }
+    }
+    function clearDragVisual(){ document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove()); }
+
+    // ====== BOOT ======
+    document.getElementById('lessonSelect').addEventListener('change', renderTray);
+    document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
+
+    bindTabs();
+    renderTray();
+    renderWordPane();
   </script>
 </body>
 </html>
