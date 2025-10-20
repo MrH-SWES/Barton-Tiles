@@ -129,20 +129,23 @@
 
   <script>
     // ====== CONFIG ======
-    const TILE_SIZE = 60;
+const TILE_SIZE = 60;
 
-    // Touch-friendly snapping
-    const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
+// Touch-friendly snapping
+const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
 
-    // Seam insertion capture width
-    const SEAM_CAPTURE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
+// Seam insertion capture width
+const SEAM_CAPTURE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
 
-    // Drag thresholds
-    function dragThresholdFor(e) { return (e && e.pointerType === 'touch') ? 12 : 6; }
+// require some vertical overlap between tiles for a snap to be valid
+const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.25);
 
-    // Tap detection
-    const TAP_MAX_TIME_MS = 250;
-    const TAP_MAX_MOVE_PX = 6;
+// Drag thresholds
+function dragThresholdFor(e) { return (e && e.pointerType === 'touch') ? 12 : 6; }
+
+// Tap detection
+const TAP_MAX_TIME_MS = 250;
+const TAP_MAX_MOVE_PX = 6;
 
     // ====== AUDIO: files preferred for single grapheme taps (tray) ======
     // Host your own audio files (same origin) if you have them; missing keys fall back to TTS.
@@ -465,22 +468,64 @@
     }
 
     // ====== LAYOUT / SNAP ======
-    function findNearbyTiles(x, y, excludeId) {
-      const nearby = [];
-      tiles.forEach(tile => {
-        if (tile.id === excludeId) return;
-        if (sameRowY(tile.y, y)) {
-          if (Math.abs((tile.x + TILE_SIZE) - x) < SNAP_DISTANCE) {
-            nearby.push({ tile, edge: 'right', snapX: tile.x + TILE_SIZE, snapY: tile.y });
-          }
-          if (Math.abs(tile.x - (x + TILE_SIZE)) < SNAP_DISTANCE) {
-            nearby.push({ tile, edge: 'left', snapX: tile.x - TILE_SIZE, snapY: tile.y });
-          }
-        }
+ function findNearbyTiles(dropX, dropY, excludeId) {
+  // The dragged tile’s tentative bbox at drop location
+  const dragLeft   = dropX;
+  const dragRight  = dropX + TILE_SIZE;
+  const dragTop    = dropY;
+  const dragBottom = dropY + TILE_SIZE;
+
+  const candidates = [];
+
+  for (const tile of tiles) {
+    if (tile.id === excludeId) continue;
+
+    const nbrLeft   = tile.x;
+    const nbrRight  = tile.x + TILE_SIZE;
+    const nbrTop    = tile.y;
+    const nbrBottom = tile.y + TILE_SIZE;
+
+    // vertical overlap amount
+    const overlapY = Math.min(dragBottom, nbrBottom) - Math.max(dragTop, nbrTop);
+    if (overlapY <= 0 || overlapY < MIN_VERTICAL_OVERLAP) continue;
+
+    // If ANY of our LEFT edge is near the neighbor’s RIGHT edge -> snap to the RIGHT side of that tile
+    const leftEdgeGap = Math.abs(nbrRight - dragLeft);
+    if (leftEdgeGap <= SNAP_DISTANCE) {
+      candidates.push({
+        tile,
+        edge: 'right',
+        // snap our left edge to neighbor’s right edge, and align vertically to neighbor’s y
+        snapX: nbrRight,
+        snapY: tile.y
       });
-      nearby.sort((a, b) => Math.abs(a.snapX - x) - Math.abs(b.snapX - x));
-      return nearby;
     }
+
+    // If ANY of our RIGHT edge is near the neighbor’s LEFT edge -> snap to the LEFT side of that tile
+    const rightEdgeGap = Math.abs(nbrLeft - dragRight);
+    if (rightEdgeGap <= SNAP_DISTANCE) {
+      candidates.push({
+        tile,
+        edge: 'left',
+        snapX: nbrLeft - TILE_SIZE,
+        snapY: tile.y
+      });
+    }
+  }
+
+  // Prefer the closest edge snap horizontally; tie-break by smallest vertical offset to the neighbor
+  candidates.sort((a, b) => {
+    const axGap = Math.abs(a.edge === 'right' ? (a.tile.x + TILE_SIZE) - dragLeft : a.tile.x - dragRight);
+    const bxGap = Math.abs(b.edge === 'right' ? (b.tile.x + TILE_SIZE) - dragLeft : b.tile.x - dragRight);
+    if (axGap !== bxGap) return axGap - bxGap;
+    const ayGap = Math.abs(a.snapY - dropY);
+    const byGap = Math.abs(b.snapY - dropY);
+    return ayGap - byGap;
+  });
+
+  return candidates;
+}
+
 
     // ====== POINTER HANDLERS ======
     function onPointerStart(e, text, color, source) {
