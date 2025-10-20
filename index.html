@@ -6,62 +6,52 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
   />
-  <title>Barton Reading Tile Board — Beta</title>
+  <title>Barton Reading Tile Board — Beta (No Audio / No Syllaboard)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    :root {
-      --bg: #0f3e72;
-      --pane: #ffffff;
+    :root{
+      --bg: #e5e7eb;              /* gray background */
       --ink: #111827;
-      --tray: #5b2a86;
-      --tab: #8b5cf6;
-      --tab-dim: #9f7aea;
+      --tray: #3f3f46;            /* dark gray tray */
+      --tab: #6b7280;             /* medium gray tab */
+      --tab-dim: #9ca3af;         /* lighter tab */
       --tab-ink: #fff;
       --shadow: rgba(0,0,0,.25);
     }
 
-    body { font-family: 'Lexend', sans-serif; background: var(--bg); color: var(--ink); height: 100vh; overflow: hidden; touch-action: manipulation; }
+    body{
+      font-family: 'Lexend', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      height: 100vh;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
 
-    #app { position: relative; height: 100%; width: 100%; }
+    #app{ position: relative; height: 100%; width: 100%; }
 
-    /* Workspace (free canvas) */
-    #wordPane {
+    /* Workspace */
+    #wordPane{
       position: absolute;
-      inset: 0 0 160px 0; /* leave room for bottom drawers */
+      inset: 0 0 160px 0; /* leave room for bottom trays */
       background: transparent;
       overflow: hidden;
     }
 
-    /* Syllaboard box (appears only in syllaboard mode) */
-    #syllaboardBox {
-      position: absolute;
-      left: 50%;
-      top: 42%;
-      transform: translateX(-50%);
-      width: min(720px, 86vw);
-      height: 120px;
-      background: #fff;
-      border-radius: 8px;
-      border: 4px solid #222;
-      box-shadow: 0 6px 16px var(--shadow);
-      display: none;
-    }
-    #syllaboardBox.on { display: block; }
-
-    .hint {
+    .hint{
       position: absolute;
       left: 50%;
       top: 46%;
       transform: translate(-50%,-50%);
-      color: #e5e7eb;
+      color: #6b7280;
       font-size: 18px;
       text-align: center;
       pointer-events: none;
     }
 
     /* Tiles */
-    .tile {
+    .tile{
       width: 60px;
       height: 60px;
       border: 2px solid #374151;
@@ -75,8 +65,9 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.25);
       flex-shrink: 0;
       touch-action: none;
+      background: white;
     }
-    .tile:active { cursor: grabbing; }
+    .tile:active{ cursor: grabbing; }
     .tile.blue   { background-color: #60a5fa; }
     .tile.yellow { background-color: #fbbf24; }
     .tile.red    { background-color: #f87171; }
@@ -84,7 +75,7 @@
     .tile.orange { background-color: #fb923c; }
     .tile.purple { background-color: #a78bfa; }
 
-    .tile.dragging {
+    .tile.dragging{
       position: fixed;
       z-index: 1000;
       opacity: .95;
@@ -93,10 +84,10 @@
       left: 0; top: 0;
     }
 
-    .word-pane-tile { position: absolute; }
+    .word-pane-tile{ position: absolute; }
 
-    /* Top controls */
-    #controls {
+    /* Controls */
+    #controls{
       position: absolute;
       top: 12px;
       left: 12px;
@@ -104,7 +95,7 @@
       gap: 8px;
       z-index: 10;
     }
-    .btn {
+    .btn{
       background: #111827;
       color: white;
       border: none;
@@ -114,18 +105,17 @@
       font-weight: 700;
       box-shadow: 0 2px 6px var(--shadow);
     }
-    .btn.secondary { background: #374151; }
-    .btn.danger    { background: #dc2626; }
+    .btn.secondary{ background: #374151; }
+    .btn.danger{ background: #dc2626; }
 
-    /* Bottom drawers (pull-up tabs) */
-    #bottomDock {
+    /* Bottom trays (pull-up horizontal) */
+    #bottomDock{
       position: absolute;
       left: 0; right: 0; bottom: 0;
-      height: 160px; /* collapsed height incl. tabs */
-      pointer-events: none; /* children re-enable */
+      height: 160px;
+      pointer-events: none;
     }
-
-    .drawerRow {
+    .drawerRow{
       position: absolute;
       left: 0; right: 0; bottom: 0;
       display: flex;
@@ -135,13 +125,10 @@
       pointer-events: auto;
     }
 
-    .drawer {
-      position: relative;
-      width: 360px;
-      max-width: 46vw;
-    }
+    .drawer{ position: relative; width: auto; max-width: none; flex: 0 0 auto; }
+    .drawer.active{ width: 100%; }
 
-    .tab {
+    .tab{
       position: absolute;
       left: 0; right: 0; bottom: 0;
       height: 40px;
@@ -158,42 +145,47 @@
       user-select: none;
       z-index: 2;
     }
-    .tab.dim { background: var(--tab-dim); }
+    .tab.dim{ background: var(--tab-dim); }
 
-    .drawerContent {
+    .drawerContent{
       position: absolute;
       left: 0; right: 0;
-      bottom: 40px; /* sits just above tab */
+      bottom: 40px;
       background: var(--tray);
       border-radius: 12px 12px 0 0;
-      padding: 10px;
+      padding: 10px 12px;
       box-shadow: 0 -6px 12px rgba(0,0,0,.35);
       overflow: hidden;
       transform: translateY(100%);
       max-height: 0;
       transition: transform .25s ease, max-height .25s ease;
     }
-    .drawer.open .drawerContent {
+    .drawer.open .drawerContent{
       transform: translateY(0%);
       max-height: 320px;
+      overflow: visible;
     }
 
-    .tile-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-
-    .legend {
-      color: #e9d5ff; font-size: 12px; margin: 4px 0 8px; text-align: center;
+    .tile-row{
+      display: flex;
+      flex-wrap: nowrap;         /* single horizontal rail */
+      gap: 8px;
+      justify-content: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 6px;
     }
 
-    .hidden { display: none !important; }
+    .legend{ color: #e5e7eb; font-size: 12px; margin: 4px 0 8px; text-align: center; }
+    .hidden{ display: none !important; }
   </style>
 </head>
 <body>
   <div id="app">
     <div id="wordPane">
-      <div id="syllaboardBox"></div>
-      <div class="hint">Drag tiles here to build words. Tap a unit to hear it.</div>
+      <div class="hint">Drag tiles here to build words.</div>
       <div id="controls">
-        <button id="toggleSyllaboard" class="btn">Syllaboard: Off</button>
         <select id="lessonSelect" class="btn secondary">
           <option value="2">Book 2</option>
           <option value="3">Book 3</option>
@@ -209,10 +201,9 @@
       </div>
     </div>
 
-    <!-- Bottom pull-up drawers -->
+    <!-- Bottom pull-up trays -->
     <div id="bottomDock">
       <div class="drawerRow">
-
         <div class="drawer" id="drawer-alphabet">
           <div class="tab">Basic Tiles</div>
           <div class="drawerContent">
@@ -242,7 +233,6 @@
             <div class="tile-row" id="latin"></div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
@@ -251,72 +241,14 @@
     // ====== CONFIG ======
     const TILE_SIZE = 60;
 
-    // Touch-friendly snapping
+    // touch-friendly thresholds
     const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
-
-    // Seam insertion capture width
-    const SEAM_CAPTURE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
-
-    // require some vertical overlap between tiles for a snap to be valid
+    const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
 
-    // Drag thresholds
-    function dragThresholdFor(e) { return (e && e.pointerType === 'touch') ? 12 : 6; }
-
-    // Tap detection
+    function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250;
     const TAP_MAX_MOVE_PX = 6;
-
-    // Syllaboard constants
-    let SYLLABOARD_MODE = false;
-    const SYLLA_ROW_Y = 50; // y inside the syllaboard box
-
-    // ====== AUDIO: files preferred for single grapheme taps (tray) ======
-    const AUDIO_MAP = {
-      "a": "/audio/a.mp3","e":"/audio/e.mp3","i":"/audio/i.mp3","o":"/audio/o.mp3","u":"/audio/u.mp3",
-      "b":"/audio/b.mp3","c":"/audio/c.mp3","d":"/audio/d.mp3","f":"/audio/f.mp3","g":"/audio/g.mp3",
-      "h":"/audio/h.mp3","j":"/audio/j.mp3","k":"/audio/k.mp3","l":"/audio/l.mp3","m":"/audio/m.mp3",
-      "n":"/audio/n.mp3","p":"/audio/p.mp3","qu":"/audio/qu.mp3","r":"/audio/r.mp3","s":"/audio/s.mp3",
-      "t":"/audio/t.mp3","v":"/audio/v.mp3","w":"/audio/w.mp3","x":"/audio/x.mp3","y":"/audio/y_consonant.mp3",
-      "z":"/audio/z.mp3",
-      "ch":"/audio/ch.mp3","sh":"/audio/sh.mp3","th":"/audio/th.mp3","wh":"/audio/wh.mp3",
-      "ar":"/audio/ar.mp3","or":"/audio/or.mp3","er":"/audio/er.mp3","ir":"/audio/ir.mp3","ur":"/audio/ur.mp3",
-      "ai":"/audio/ai.mp3","ay":"/audio/ay.mp3","ee":"/audio/ee.mp3","oa":"/audio/oa.mp3","igh":"/audio/igh.mp3",
-      "y_vowel":"/audio/y_vowel.mp3"
-    };
-    const _audioCache = new Map();
-    function getAudio(key){ const url = AUDIO_MAP[key]; if(!url) return null; if(_audioCache.has(url)) return _audioCache.get(url); const el=new Audio(url); el.preload="auto"; _audioCache.set(url,el); return el; }
-    window.addEventListener("load",()=>["a","e","i","o","u","ch","sh","th","qu"].forEach(k=>{const a=getAudio(k); if(a){try{a.load();}catch(_){}}}));
-
-    const PHONEME_TTS = {
-      a:"ă",e:"ĕ",i:"ĭ",o:"ŏ",u:"ŭ",
-      ch:"ch",sh:"sh",th:"th",wh:"hw",ck:"k",ph:"f",tch:"ch",dge:"j",
-      ar:"ar",or:"or",er:"ər",ir:"ər",ur:"ər",ear:"eer",
-      ai:"ā",ay:"ā",ee:"ē",ea:"ē",oa:"ō",oe:"ō",ue:"o͞o",ew:"o͞o",ow:"ō",
-      oi:"oi",oy:"oi",au:"aw",aw:"aw",oo:"o͝o",ou:"ow",igh:"ī",
-      ps:"s",rh:"r",mn:"n",wr:"r",kn:"n",gh:"g",gn:"n",que:"k",gu:"gw",gue:"g",
-      b:"b",c:"k",d:"d",f:"f",g:"g",h:"h",j:"j",k:"k",l:"l",m:"m",n:"n",
-      p:"p",qu:"kw",r:"r",s:"s",t:"t",v:"v",w:"w",x:"ks",y:"y",z:"z", y_vowel:"ĭ"
-    };
-
-    function speakTTS(text){
-      if(!text) return;
-      if("speechSynthesis" in window){
-        try{ const u=new SpeechSynthesisUtterance(text); u.lang="en-US"; u.rate=.9; u.pitch=1; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(_){}
-      }
-    }
-    function playPhoneme(grapheme,opts={}) {
-      const key=(grapheme==='y'&&opts.vowelY)?'y_vowel':grapheme;
-      const a=getAudio(key);
-      if(a){ try{ _audioCache.forEach(x=>{ if(!x.paused && x!==a){ try{x.pause(); x.currentTime=0;}catch(_){}}}); a.currentTime=0; a.play().catch(()=>speakTTS(PHONEME_TTS[key]||key)); return; }catch(_){ } }
-      speakTTS(PHONEME_TTS[key]||key);
-    }
-    function speakUnitForTileId(id){
-      const t=tiles.find(x=>x.id===id); if(!t) return;
-      const chain=getGroupChain(t);
-      const text=chain.map(x=>x.text).join('');
-      speakTTS(text);
-    }
 
     // ====== LEVEL DATA ======
     const B_LEVELS = {
@@ -333,7 +265,7 @@
 
     // ====== STATE ======
     let blueTiles=[], yellowTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
-    let tiles=[]; // on pane
+    let tiles=[];                       // on the pane
     let draggedTile=null;
     let draggedGroup=[];
     let dragOffset={x:0,y:0};
@@ -398,16 +330,18 @@
 
     // ====== DRAWERS ======
     function setupDrawers(){
-      document.querySelectorAll('.drawer .tab').forEach(tab=>{
-        tab.addEventListener('click', ()=>{
-          const drawer=tab.parentElement;
-          const openNow=drawer.classList.contains('open');
-          document.querySelectorAll('.drawer').forEach(d=>d.classList.remove('open'));
-          if(!openNow) drawer.classList.add('open');
+      const drawers = Array.from(document.querySelectorAll('.drawer'));
+      function openDrawer(d){
+        drawers.forEach(x=>x.classList.remove('open','active'));
+        d.classList.add('open','active');
+      }
+      drawers.forEach(d=>{
+        d.querySelector('.tab').addEventListener('click', ()=>{
+          if(d.classList.contains('open')) d.classList.remove('open','active');
+          else openDrawer(d);
         });
       });
-      // open the first drawer by default
-      document.getElementById('drawer-alphabet').classList.add('open');
+      openDrawer(document.getElementById('drawer-alphabet'));
     }
 
     // ====== DOM BUILDERS ======
@@ -480,9 +414,6 @@
       wordPane.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
       hint.style.display = tiles.length>0 ? 'none' : 'block';
 
-      // Syllaboard box visibility
-      document.getElementById('syllaboardBox').classList.toggle('on', SYLLABOARD_MODE);
-
       tiles.forEach(tile=>{
         if(draggedGroup.find(t=>t.id===tile.id)) return;
         const el=document.createElement('div');
@@ -497,7 +428,7 @@
       });
     }
 
-    // ====== SNAP (edge-touch with vertical-overlap) ======
+    // ====== SNAP (edge-touch with vertical overlap) ======
     function findNearbyTiles(dropX, dropY, excludeId){
       const dragLeft=dropX, dragRight=dropX+TILE_SIZE, dragTop=dropY, dragBottom=dropY+TILE_SIZE;
       const candidates=[];
@@ -509,11 +440,11 @@
 
         const leftGap=Math.abs(nbrRight - dragLeft);
         if(leftGap<=SNAP_DISTANCE){
-          candidates.push({ tile, edge:'right', snapX:nbrRight, snapY: SYLLABOARD_MODE ? tile.y : tile.y });
+          candidates.push({ tile, edge:'right', snapX:nbrRight, snapY: tile.y });
         }
         const rightGap=Math.abs(nbrLeft - dragRight);
         if(rightGap<=SNAP_DISTANCE){
-          candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY: SYLLABOARD_MODE ? tile.y : tile.y });
+          candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY: tile.y });
         }
       }
       candidates.sort((a,b)=>{
@@ -526,7 +457,7 @@
       return candidates;
     }
 
-    // ====== POINTER HANDLERS ======
+    // ====== POINTERS ======
     function onPointerStart(e,text,color,source){
       if(e.isPrimary===false) return;
       e.preventDefault(); e.stopPropagation();
@@ -551,9 +482,8 @@
       gesture.onEnd=(ev)=>{
         const dt=performance.now()-gesture.tStart;
         const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
+        // Tap does nothing now (audio removed)
         if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
-          if(gesture.source!=='tray') speakUnitForTileId(gesture.source);
-          else playPhoneme(text, { vowelY:(text==='y' && isVowelYInScope()) });
           cleanupPointerListeners(); gesture=null; return;
         }
         handleEnd(ev);
@@ -583,10 +513,10 @@
         const paneTile=tiles.find(t=>t.id===source); if(!paneTile) return;
         const chain=getGroupChain(paneTile);
         const idx=chain.findIndex(t=>t.id===paneTile.id);
-        const horizontal=Math.abs(dx) >= Math.abs(dy);
-        if(!horizontal) draggedGroup=[paneTile];
-        else if(dx<0)   draggedGroup=chain.slice(0, idx+1);
-        else            draggedGroup=chain.slice(idx);
+        const horizontal=Math.abs(dx) >= Math.abs(dy); // 45° rule
+        if(!horizontal) draggedGroup=[paneTile];       // vertical pull-out
+        else if(dx<0)   draggedGroup=chain.slice(0, idx+1); // move left chunk incl grabbed
+        else            draggedGroup=chain.slice(idx);      // move right chunk incl grabbed
 
         draggedTile={ ...paneTile, x:startX, y:startY, sourceType:'pane', startX, startY };
         dragStartRowY=paneTile.y;
@@ -613,25 +543,23 @@
       const inside = e.clientX>=paneRect.left && e.clientX<=paneRect.right && e.clientY>=paneRect.top && e.clientY<=paneRect.bottom;
 
       if(inside){
-        // drop position in pane coords
         let dropX=e.clientX - paneRect.left - dragOffset.x;
         let dropY=e.clientY - paneRect.top  - dragOffset.y;
 
-        if(SYLLABOARD_MODE) dropY = SYLLA_ROW_Y;
-
         if(draggedTile.sourceType==='tray'){
-          // seam first (row restricted in syllaboard mode)
-          const seam = findSeamNear(dropY, dropY) || findSeamNear(dropX, dropY);
-          if(seam && (!SYLLABOARD_MODE || sameRowY(seam.rowY, SYLLA_ROW_Y))){
+          // try seam first
+          const seam = findSeamNear(dropX, dropY);
+          if(seam){
             insertAtSeam({text:draggedTile.text, color:draggedTile.color}, seam);
             finishDrop(); return;
           }
 
+          // normal snap
           const nearby=findNearbyTiles(dropX, dropY, null);
           let finalX=dropX, finalY=dropY, groupId=null;
           if(nearby.length>0){
             const closest=nearby[0];
-            finalX=closest.snapX; finalY = SYLLABOARD_MODE ? SYLLA_ROW_Y : closest.snapY;
+            finalX=closest.snapX; finalY=closest.snapY;
             groupId=closest.tile.groupId || closest.tile.id;
           }
           const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:finalX, y:finalY, groupId };
@@ -642,7 +570,7 @@
             // single-tile: allow seam
             if(draggedGroup.length===1){
               const seam=findSeamNear(dropX, dropY);
-              if(seam && (!SYLLABOARD_MODE || sameRowY(seam.rowY, SYLLA_ROW_Y))){
+              if(seam){
                 const only=draggedGroup[0]; const originY=only.y;
                 tiles = tiles.filter(t=>t.id!==only.id);
                 if(dragStartRowY!==null) recomputeGroupsAround(originY);
@@ -653,14 +581,14 @@
 
             const main=draggedGroup.find(gt=>gt.id===draggedTile.id);
             const mainDropX = e.clientX - paneRect.left - (draggedTile.startX - main.x);
-            const mainDropY = (SYLLABOARD_MODE ? SYLLA_ROW_Y : (e.clientY - paneRect.top - (draggedTile.startY - main.y)));
+            const mainDropY = e.clientY - paneRect.top  - (draggedTile.startY - main.y);
 
             const nearMain=findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
             let snapAdj={dx:0, dy:0, groupId:null};
             if(nearMain.length>0){
               const closest=nearMain[0];
               snapAdj.dx = closest.snapX - mainDropX;
-              snapAdj.dy = (SYLLABOARD_MODE ? 0 : (closest.snapY - mainDropY));
+              snapAdj.dy = closest.snapY - mainDropY;
               snapAdj.groupId = closest.tile.groupId || closest.tile.id;
             }
 
@@ -671,12 +599,12 @@
               const offX=t.x - before.x;
               const offY=t.y - before.y;
               const newX=mainDropX + offX + snapAdj.dx;
-              const newY=(SYLLABOARD_MODE ? SYLLA_ROW_Y : (mainDropY + offY + snapAdj.dy));
+              const newY=mainDropY + offY + snapAdj.dy;
               return { ...t, x:newX, y:newY, groupId: snapAdj.groupId || null };
             });
 
             if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
-            recomputeGroupsAround(SYLLABOARD_MODE ? SYLLA_ROW_Y : (mainDropY + snapAdj.dy));
+            recomputeGroupsAround(mainDropY + snapAdj.dy);
           }
         }
       } else if(draggedTile.sourceType==='pane'){
@@ -695,66 +623,4 @@
       }
     }
 
-    // ====== DRAG VISUALS ======
-    function updateDragVisual(){
-      clearDragVisual();
-      if(!draggedTile) return;
-      const paneRect=document.getElementById('wordPane').getBoundingClientRect();
-
-      if(draggedGroup.length>0){
-        const dx=draggedTile.x - draggedTile.startX;
-        const dy=draggedTile.y - draggedTile.startY;
-        draggedGroup.forEach(t=>{
-          const g=document.createElement('div');
-          g.className=`tile ${t.color} dragging`;
-          g.textContent=t.text;
-          g.style.fontSize=getFontSize(t.text);
-          const gx = t.x + dx + paneRect.left;
-          const gy = (SYLLABOARD_MODE ? SYLLA_ROW_Y + paneRect.top : (t.y + dy + paneRect.top));
-          g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
-          g.dataset.dragging='true';
-          document.body.appendChild(g);
-        });
-      } else {
-        const g=document.createElement('div');
-        g.className=`tile ${draggedTile.color} dragging`;
-        g.textContent=draggedTile.text;
-        g.style.fontSize=getFontSize(draggedTile.text);
-        const gx = draggedTile.x - dragOffset.x;
-        const gy = (SYLLABOARD_MODE ? (document.getElementById('wordPane').getBoundingClientRect().top + SYLLA_ROW_Y) : (draggedTile.y - dragOffset.y));
-        g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
-        g.dataset.dragging='true';
-        document.body.appendChild(g);
-      }
-      // do not call renderWordPane() here to keep ghosts smooth
-    }
-    function clearDragVisual(){ document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove()); }
-
-    // ====== HELPERS ======
-    function isVowelYInScope(){
-      const lvl=parseInt(document.getElementById('lessonSelect').value,10);
-      if(lvl<6) return false; const L=B_LEVELS[6]; return !!(L && L.yellow && L.yellow.includes('y'));
-    }
-
-    // ====== BOOT ======
-    setupDrawers();
-    document.getElementById('lessonSelect').addEventListener('change', renderTray);
-    document.getElementById('resetButton').addEventListener('click', ()=>{
-      tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane();
-    });
-    document.getElementById('toggleSyllaboard').addEventListener('click', ()=>{
-      SYLLABOARD_MODE=!SYLLABOARD_MODE;
-      document.getElementById('toggleSyllaboard').textContent = `Syllaboard: ${SYLLABOARD_MODE?'On':'Off'}`;
-      if(SYLLABOARD_MODE){
-        // snap any existing tiles to the board row
-        tiles = tiles.map(t=>({...t, y: SYLLA_ROW_Y}));
-        recomputeGroupsAround(SYLLA_ROW_Y);
-      }
-      renderWordPane();
-    });
-
-    renderTray();
-    renderWordPane();
-  </script>
-</body>
-</html>
+    // ====== DRA
