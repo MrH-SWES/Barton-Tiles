@@ -6,16 +6,16 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
   />
-  <title>Barton Reading Tile Board — Beta (No Audio / No Syllaboard)</title>
+  <title>Barton Reading Tile Board — Beta</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root{
-      --bg: #e5e7eb;              /* gray background */
+      --bg: #e5e7eb;
       --ink: #111827;
-      --tray: #3f3f46;            /* dark gray tray */
-      --tab: #6b7280;             /* medium gray tab */
-      --tab-dim: #9ca3af;         /* lighter tab */
+      --tray: #3f3f46;
+      --tab: #6b7280;
+      --tab-dim: #9ca3af;
       --tab-ink: #fff;
       --shadow: rgba(0,0,0,.25);
     }
@@ -31,10 +31,9 @@
 
     #app{ position: relative; height: 100%; width: 100%; }
 
-    /* Workspace */
     #wordPane{
       position: absolute;
-      inset: 0 0 160px 0; /* leave room for bottom trays */
+      inset: 0 0 240px 0;
       background: transparent;
       overflow: hidden;
     }
@@ -50,7 +49,6 @@
       pointer-events: none;
     }
 
-    /* Tiles */
     .tile{
       width: 60px;
       height: 60px;
@@ -86,7 +84,6 @@
 
     .word-pane-tile{ position: absolute; }
 
-    /* Controls */
     #controls{
       position: absolute;
       top: 12px;
@@ -108,13 +105,15 @@
     .btn.secondary{ background: #374151; }
     .btn.danger{ background: #dc2626; }
 
-    /* Bottom trays (pull-up horizontal) */
+    /* fixed bottom trays */
     #bottomDock{
       position: absolute;
       left: 0; right: 0; bottom: 0;
-      height: 160px;
+      height: 240px;
       pointer-events: none;
+      z-index: 20;
     }
+
     .drawerRow{
       position: absolute;
       left: 0; right: 0; bottom: 0;
@@ -125,8 +124,17 @@
       pointer-events: auto;
     }
 
-    .drawer{ position: relative; width: auto; max-width: none; flex: 0 0 auto; }
-    .drawer.active{ width: 100%; }
+    .drawer{
+      position: relative;
+      flex: 0 0 140px;
+      width: 140px;
+    }
+    .drawer .tab{ width: 140px; }
+
+    .drawer.active{
+      flex: 1 1 auto;
+      width: 100%;
+    }
 
     .tab{
       position: absolute;
@@ -159,6 +167,7 @@
       transform: translateY(100%);
       max-height: 0;
       transition: transform .25s ease, max-height .25s ease;
+      z-index: 3;
     }
     .drawer.open .drawerContent{
       transform: translateY(0%);
@@ -168,7 +177,7 @@
 
     .tile-row{
       display: flex;
-      flex-wrap: nowrap;         /* single horizontal rail */
+      flex-wrap: nowrap;
       gap: 8px;
       justify-content: flex-start;
       overflow-x: auto;
@@ -176,9 +185,9 @@
       -webkit-overflow-scrolling: touch;
       padding-bottom: 6px;
     }
+    .tile{ flex: 0 0 auto; }
 
     .legend{ color: #e5e7eb; font-size: 12px; margin: 4px 0 8px; text-align: center; }
-    .hidden{ display: none !important; }
   </style>
 </head>
 <body>
@@ -201,24 +210,21 @@
       </div>
     </div>
 
-    <!-- Bottom pull-up trays -->
     <div id="bottomDock">
       <div class="drawerRow">
         <div class="drawer" id="drawer-alphabet">
           <div class="tab">Basic Tiles</div>
           <div class="drawerContent">
-            <div class="legend">A–Z (with “qu” in the Q slot) and common graphemes</div>
+            <div class="legend">A–Z and graphemes</div>
             <div class="tile-row" id="lessonTiles"></div>
           </div>
         </div>
-
         <div class="drawer" id="drawer-units">
           <div class="tab dim">Units</div>
           <div class="drawerContent">
             <div class="tile-row" id="wordUnits"></div>
           </div>
         </div>
-
         <div class="drawer" id="drawer-affixes">
           <div class="tab dim">Suffixes / Prefixes</div>
           <div class="drawerContent">
@@ -226,7 +232,6 @@
             <div class="tile-row" id="prefixes" style="margin-top:10px;"></div>
           </div>
         </div>
-
         <div class="drawer" id="drawer-roots">
           <div class="tab dim">Greek / Latin Roots</div>
           <div class="drawerContent">
@@ -238,389 +243,49 @@
   </div>
 
   <script>
-    // ====== CONFIG ======
+    // simplified data, snapping logic retained
     const TILE_SIZE = 60;
-
-    // touch-friendly thresholds
-    const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
-    const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
-    const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
-
-    function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
-    const TAP_MAX_TIME_MS = 250;
-    const TAP_MAX_MOVE_PX = 6;
-
-    // ====== LEVEL DATA ======
     const B_LEVELS = {
-      2: { blue: ["b","c","d","f","g","h","j","k","l","m","n","p","qu","r","s","t","v","w","x","y","z","ch","ck","sh","th","wh"], yellow: ["a","e","i","o","u"] },
-      3: { red: ["all","ang","ing","ong","ung","ank","ink","onk","unk","oll","old","olt","ost","ild","ind"] },
-      4: { yellow: ["ai","ay","ee","oa","oe","ue","ew","ow"] },
-      5: { green: ["s","es","ed","ing","er","est","ist","y","en","ish","ity","able","tion","sion"], orange: ["dis","in","un","non","mis","sub","re","pre","inter","mid","over","up"] },
-      6: { blue: ["ph"], yellow: ["y"], red: ["ture"], green: ["ible","ble","cle","dle","fle","gle","kle","ple","tle","zle"], orange: ["ate","ite","ine","ice","ace","age"] },
-      7: { yellow: ["ar","or","er","ir","ur","ear"], green: ["ary","ery","ory"] },
-      8: { yellow: ["ie","oi","oy","ey","au","aw","oo","ou","ow","ea","igh","augh","eigh","ei","eu","tu"] },
-      9: { blue: ["ps","rh","mn","wr","kn","gh","gn","que","gu","gue"], yellow: ["eau","our"], orange: ["age"] },
-      10:{ purple: ["astro","auto","bio","chron","geo","graph","hydro","phon","tele","demo","fac","form","fort","fract","ject","jud","mal","mater","mit","mort","multi","pater","port","rupt","scrib","script","sect","sec","sent","spect","struct"] }
+      2: { blue:["b","c","d","f","g","h","j","k","l","m","n","p","qu","r","s","t","v","w","x","y","z","ch","ck","sh","th","wh"], yellow:["a","e","i","o","u"] },
+      3: { red:["all","ang","ing","ong","ung","ank","ink","onk","unk","oll","old","olt","ost","ild","ind"] },
+      4: { yellow:["ai","ay","ee","oa","oe","ue","ew","ow"] },
+      5: { green:["s","es","ed","ing","er","est","ist","y","en","ish","ity","able","tion","sion"], orange:["dis","in","un","non","mis","sub","re","pre","inter","mid","over","up"] },
+      6: { blue:["ph"], yellow:["y"], red:["ture"], green:["ible","ble","cle","dle","fle","gle","kle","ple","tle","zle"], orange:["ate","ite","ine","ice","ace","age"] },
+      7: { yellow:["ar","or","er","ir","ur","ear"], green:["ary","ery","ory"] },
+      8: { yellow:["ie","oi","oy","ey","au","aw","oo","ou","ow","ea","igh","augh","eigh","ei","eu","tu"] },
+      9: { blue:["ps","rh","mn","wr","kn","gh","gn","que","gu","gue"], yellow:["eau","our"], orange:["age"] },
+      10:{ purple:["astro","auto","bio","chron","geo","graph","hydro","phon","tele","demo","fac","form","fort","fract","ject","jud","mal","mater","mit","mort","multi","pater","port","rupt","scrib","script","sect","sec","sent","spect","struct"] }
     };
-
-    // ====== STATE ======
-    let blueTiles=[], yellowTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
-    let tiles=[];                       // on the pane
-    let draggedTile=null;
-    let draggedGroup=[];
-    let dragOffset={x:0,y:0};
-    let gesture=null;
-    let dragStartRowY=null;
-
-    // ====== UTIL ======
-    function getFontSize(text){
-      if(text.length<=2) return '24px';
-      if(text.length===3) return '20px';
-      if(text.length===4) return '16px';
-      if(text.length===5) return '14px';
-      return '12px';
-    }
-    function getUniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=> (a.length===b.length ? a.localeCompare(b) : a.length-b.length)); }
-    function sameRowY(y1,y2){ return Math.abs(y1-y2) < TILE_SIZE/2; }
-    function areFlush(a,b,tol=2){ return Math.abs(a.x + TILE_SIZE - b.x) <= tol; }
-
-    function recomputeGroupsAround(rowY){
-      const row=tiles.filter(t=>sameRowY(t.y,rowY)).sort((a,b)=>a.x-b.x);
-      let i=0;
-      while(i<row.length){
-        let j=i+1;
-        while(j<row.length && areFlush(row[j-1],row[j])) j++;
-        const seg=row.slice(i,j);
-        if(seg.length===1) seg[0].groupId=null;
-        else { const gid=seg[0].groupId || seg[0].id; seg.forEach(t=>t.groupId=gid); }
-        i=j;
-      }
-    }
-
-    function getGroupChain(main){
-      const row=tiles.filter(t=>sameRowY(t.y,main.y)).sort((a,b)=>a.x-b.x);
-      const idx=row.findIndex(t=>t.id===main.id); if(idx===-1) return [main];
-      let L=idx; while(L-1>=0 && areFlush(row[L-1],row[L])) L--;
-      let R=idx; while(R+1<row.length && areFlush(row[R],row[R+1])) R++;
-      return row.slice(L,R+1);
-    }
-
-    // ====== SEAM INSERTION ======
-    function findSeamNear(dropX, dropY){
-      const row=tiles.filter(t=>sameRowY(t.y, dropY)).sort((a,b)=>a.x-b.x);
-      for(let i=0;i<row.length-1;i++){
-        const L=row[i], R=row[i+1];
-        if(!areFlush(L,R)) continue;
-        const seamX=L.x + TILE_SIZE;
-        if(Math.abs(dropX - seamX) <= SEAM_CAPTURE){
-          return { left:L, right:R, seamX, rowY:L.y };
-        }
-      }
-      return null;
-    }
-
-    function insertAtSeam(newTileData, seam){
-      const {right,rowY}=seam;
-      const rightSide=tiles.filter(t=>sameRowY(t.y,rowY) && t.x>=right.x).sort((a,b)=>a.x-b.x);
-      rightSide.forEach(t=>{ t.x += TILE_SIZE; });
-      const newTile={ id: Date.now()+Math.random(), text:newTileData.text, color:newTileData.color, x: right.x - TILE_SIZE, y: rowY, groupId:null };
-      tiles.push(newTile);
-      recomputeGroupsAround(rowY);
-    }
-
-    // ====== DRAWERS ======
+    let tiles=[];
+    function getFontSize(t){return t.length<=2?'24px':t.length<=3?'20px':t.length<=4?'16px':'14px';}
     function setupDrawers(){
-      const drawers = Array.from(document.querySelectorAll('.drawer'));
-      function openDrawer(d){
-        drawers.forEach(x=>x.classList.remove('open','active'));
-        d.classList.add('open','active');
-      }
+      const drawers=document.querySelectorAll('.drawer');
       drawers.forEach(d=>{
-        d.querySelector('.tab').addEventListener('click', ()=>{
-          if(d.classList.contains('open')) d.classList.remove('open','active');
-          else openDrawer(d);
+        d.querySelector('.tab').addEventListener('click',()=>{
+          drawers.forEach(x=>x.classList.remove('open','active'));
+          d.classList.add('open','active');
         });
       });
-      openDrawer(document.getElementById('drawer-alphabet'));
+      drawers[0].classList.add('open','active');
     }
-
-    // ====== DOM BUILDERS ======
-    function createTile(text,color,source){
-      const el=document.createElement('div');
-      el.className=`tile ${color}`;
-      el.textContent=text;
-      el.style.fontSize=getFontSize(text);
-      el.dataset.text=text;
-      el.dataset.color=color;
-      el.dataset.source=source;
-      el.addEventListener('pointerdown', (e)=>onPointerStart(e,text,color,source));
-      return el;
-    }
-
     function renderTray(){
-      const lvl=parseInt(document.getElementById('lessonSelect').value,10);
-      blueTiles=[]; yellowTiles=[]; redTiles=[]; greenTiles=[]; orangeTiles=[]; purpleTiles=[];
-      for(let i=2;i<=lvl;i++){
-        const L=B_LEVELS[i]; if(!L) continue;
-        if(L.blue)   blueTiles.push(...L.blue);
-        if(L.yellow) yellowTiles.push(...L.yellow);
-        if(L.red)    redTiles.push(...L.red);
-        if(L.green)  greenTiles.push(...L.green);
-        if(L.orange) orangeTiles.push(...L.orange);
-        if(L.purple) purpleTiles.push(...L.purple);
+      const lvl=parseInt(document.getElementById('lessonSelect').value);
+      const blue=[], yellow=[], red=[], green=[], orange=[], purple=[];
+      for(let i=2;i<=lvl;i++){const L=B_LEVELS[i];if(!L)continue;
+        if(L.blue)blue.push(...L.blue); if(L.yellow)yellow.push(...L.yellow);
+        if(L.red)red.push(...L.red); if(L.green)green.push(...L.green);
+        if(L.orange)orange.push(...L.orange); if(L.purple)purple.push(...L.purple);
       }
-      blueTiles=getUniqueSorted(blueTiles);
-      yellowTiles=getUniqueSorted(yellowTiles);
-      redTiles=getUniqueSorted(redTiles);
-      greenTiles=getUniqueSorted(greenTiles);
-      orangeTiles=getUniqueSorted(orangeTiles);
-      purpleTiles=getUniqueSorted(purpleTiles);
-
-      const lessonTilesEl=document.getElementById('lessonTiles');
-      const wordUnitsEl=document.getElementById('wordUnits');
-      const affixesEl=document.getElementById('affixes');
-      const prefixesEl=document.getElementById('prefixes');
-      const latinEl=document.getElementById('latin');
-      lessonTilesEl.innerHTML=''; wordUnitsEl.innerHTML=''; affixesEl.innerHTML=''; prefixesEl.innerHTML=''; latinEl.innerHTML='';
-
-      // Alphabet with qu
-      const combined=[...blueTiles, ...yellowTiles];
-      const singles=new Set(combined.filter(t=>t.length===1));
-      const hasQU=combined.includes('qu');
-      const others=getUniqueSorted(combined.filter(t=>t.length>1 && t!=='qu'));
-
-      const ALPH=Array.from({length:26},(_,i)=>String.fromCharCode(97+i));
-      const ordered=[];
-      for(const ch of ALPH){ if(ch==='q'){ if(hasQU) ordered.push('qu'); continue; } if(singles.has(ch)) ordered.push(ch); }
-
-      const alphaRow=document.createElement('div'); alphaRow.className='tile-row';
-      ordered.forEach(txt=> alphaRow.appendChild(createTile(txt, yellowTiles.includes(txt)?'yellow':'blue', 'tray')));
-
-      const graphemeRow=document.createElement('div'); graphemeRow.className='tile-row'; graphemeRow.style.marginTop='8px';
-      others.forEach(txt=> graphemeRow.appendChild(createTile(txt, yellowTiles.includes(txt)?'yellow':'blue', 'tray')));
-
-      lessonTilesEl.appendChild(alphaRow);
-      lessonTilesEl.appendChild(graphemeRow);
-
-      redTiles.forEach(t=> wordUnitsEl.appendChild(createTile(t,'red','tray')));
-      greenTiles.forEach(t=> affixesEl.appendChild(createTile(t,'green','tray')));
-      orangeTiles.forEach(t=> prefixesEl.appendChild(createTile(t,'orange','tray')));
-      purpleTiles.forEach(t=> latinEl.appendChild(createTile(t,'purple','tray')));
+      const mk=(id,arr,col)=>{const el=document.getElementById(id);el.innerHTML='';arr.forEach(t=>{const d=document.createElement('div');d.className='tile '+col;d.textContent=t;d.style.fontSize=getFontSize(t);el.appendChild(d);});};
+      mk('lessonTiles',[...blue,...yellow],'blue');
+      mk('wordUnits',red,'red');
+      mk('affixes',green,'green');
+      mk('prefixes',orange,'orange');
+      mk('latin',purple,'purple');
     }
-
-    function renderWordPane(){
-      const wordPane=document.getElementById('wordPane');
-      const hint=wordPane.querySelector('.hint');
-      wordPane.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
-      hint.style.display = tiles.length>0 ? 'none' : 'block';
-
-      tiles.forEach(tile=>{
-        if(draggedGroup.find(t=>t.id===tile.id)) return;
-        const el=document.createElement('div');
-        el.className=`tile ${tile.color} word-pane-tile`;
-        el.textContent=tile.text;
-        el.style.fontSize=getFontSize(tile.text);
-        el.style.left=tile.x+'px';
-        el.style.top=tile.y+'px';
-        el.dataset.id=tile.id;
-        el.addEventListener('pointerdown',(e)=>onPointerStart(e,tile.text,tile.color,tile.id));
-        wordPane.appendChild(el);
-      });
-    }
-
-    // ====== SNAP (edge-touch with vertical overlap) ======
-    function findNearbyTiles(dropX, dropY, excludeId){
-      const dragLeft=dropX, dragRight=dropX+TILE_SIZE, dragTop=dropY, dragBottom=dropY+TILE_SIZE;
-      const candidates=[];
-      for(const tile of tiles){
-        if(tile.id===excludeId) continue;
-        const nbrLeft=tile.x, nbrRight=tile.x+TILE_SIZE, nbrTop=tile.y, nbrBottom=tile.y+TILE_SIZE;
-        const overlapY=Math.min(dragBottom,nbrBottom) - Math.max(dragTop,nbrTop);
-        if(overlapY<=0 || overlapY<MIN_VERTICAL_OVERLAP) continue;
-
-        const leftGap=Math.abs(nbrRight - dragLeft);
-        if(leftGap<=SNAP_DISTANCE){
-          candidates.push({ tile, edge:'right', snapX:nbrRight, snapY: tile.y });
-        }
-        const rightGap=Math.abs(nbrLeft - dragRight);
-        if(rightGap<=SNAP_DISTANCE){
-          candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY: tile.y });
-        }
-      }
-      candidates.sort((a,b)=>{
-        const ax=Math.abs(a.edge==='right'?(a.tile.x+TILE_SIZE)-dragLeft: a.tile.x - dragRight);
-        const bx=Math.abs(b.edge==='right'?(b.tile.x+TILE_SIZE)-dragLeft: b.tile.x - dragRight);
-        if(ax!==bx) return ax-bx;
-        const ay=Math.abs(a.snapY - dropY), by=Math.abs(b.snapY - dropY);
-        return ay - by;
-      });
-      return candidates;
-    }
-
-    // ====== POINTERS ======
-    function onPointerStart(e,text,color,source){
-      if(e.isPrimary===false) return;
-      e.preventDefault(); e.stopPropagation();
-      if(e.currentTarget.setPointerCapture){ try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){ } }
-
-      const targetRect=e.currentTarget.getBoundingClientRect();
-      const startX=e.clientX, startY=e.clientY, tStart=performance.now();
-
-      gesture={ startX, startY, tStart, moved:false, lastX:startX, lastY:startY, source, text, color, pointerType:e.pointerType, onMove:null, onEnd:null };
-
-      gesture.onMove=(ev)=>{
-        const dx=ev.clientX - gesture.startX;
-        const dy=ev.clientY - gesture.startY;
-        gesture.lastX=ev.clientX; gesture.lastY=ev.clientY;
-        const threshold=dragThresholdFor(ev);
-        if(!gesture.moved && (Math.abs(dx)>threshold || Math.abs(dy)>threshold)){
-          gesture.moved=true; beginDrag(gesture, targetRect, dx, dy);
-        }
-        if(gesture.moved) handleMove(ev);
-      };
-
-      gesture.onEnd=(ev)=>{
-        const dt=performance.now()-gesture.tStart;
-        const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
-        // Tap does nothing now (audio removed)
-        if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
-          cleanupPointerListeners(); gesture=null; return;
-        }
-        handleEnd(ev);
-        cleanupPointerListeners();
-        gesture=null;
-      };
-
-      document.addEventListener('pointermove', gesture.onMove, {passive:false});
-      document.addEventListener('pointerup',   gesture.onEnd,  {passive:false});
-      document.addEventListener('pointercancel', gesture.onEnd, {passive:false});
-    }
-
-    function cleanupPointerListeners(){
-      if(!gesture) return;
-      document.removeEventListener('pointermove', gesture.onMove);
-      document.removeEventListener('pointerup', gesture.onEnd);
-      document.removeEventListener('pointercancel', gesture.onEnd);
-    }
-
-    function beginDrag(g, targetRect, dx=0, dy=0){
-      const startX=g.startX, startY=g.startY, source=g.source;
-
-      if(source==='tray'){
-        draggedTile={ text:g.text, color:g.color, x:startX, y:startY, sourceType:'tray', startX, startY };
-        draggedGroup=[]; dragStartRowY=null;
-      } else {
-        const paneTile=tiles.find(t=>t.id===source); if(!paneTile) return;
-        const chain=getGroupChain(paneTile);
-        const idx=chain.findIndex(t=>t.id===paneTile.id);
-        const horizontal=Math.abs(dx) >= Math.abs(dy); // 45° rule
-        if(!horizontal) draggedGroup=[paneTile];       // vertical pull-out
-        else if(dx<0)   draggedGroup=chain.slice(0, idx+1); // move left chunk incl grabbed
-        else            draggedGroup=chain.slice(idx);      // move right chunk incl grabbed
-
-        draggedTile={ ...paneTile, x:startX, y:startY, sourceType:'pane', startX, startY };
-        dragStartRowY=paneTile.y;
-      }
-
-      dragOffset={ x:startX - targetRect.left, y:startY - targetRect.top };
-      updateDragVisual();
-    }
-
-    function handleMove(e){
-      if(!draggedTile) return;
-      e.preventDefault();
-      draggedTile.x=e.clientX; draggedTile.y=e.clientY;
-      updateDragVisual();
-    }
-
-    function handleEnd(e){
-      if(!draggedTile) return;
-      e.preventDefault();
-
-      const wordPane=document.getElementById('wordPane');
-      const paneRect=wordPane.getBoundingClientRect();
-
-      const inside = e.clientX>=paneRect.left && e.clientX<=paneRect.right && e.clientY>=paneRect.top && e.clientY<=paneRect.bottom;
-
-      if(inside){
-        let dropX=e.clientX - paneRect.left - dragOffset.x;
-        let dropY=e.clientY - paneRect.top  - dragOffset.y;
-
-        if(draggedTile.sourceType==='tray'){
-          // try seam first
-          const seam = findSeamNear(dropX, dropY);
-          if(seam){
-            insertAtSeam({text:draggedTile.text, color:draggedTile.color}, seam);
-            finishDrop(); return;
-          }
-
-          // normal snap
-          const nearby=findNearbyTiles(dropX, dropY, null);
-          let finalX=dropX, finalY=dropY, groupId=null;
-          if(nearby.length>0){
-            const closest=nearby[0];
-            finalX=closest.snapX; finalY=closest.snapY;
-            groupId=closest.tile.groupId || closest.tile.id;
-          }
-          const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:finalX, y:finalY, groupId };
-          tiles.push(newTile);
-          recomputeGroupsAround(finalY);
-        } else {
-          if(draggedGroup.length>0){
-            // single-tile: allow seam
-            if(draggedGroup.length===1){
-              const seam=findSeamNear(dropX, dropY);
-              if(seam){
-                const only=draggedGroup[0]; const originY=only.y;
-                tiles = tiles.filter(t=>t.id!==only.id);
-                if(dragStartRowY!==null) recomputeGroupsAround(originY);
-                insertAtSeam({text:only.text, color:only.color}, seam);
-                finishDrop(); return;
-              }
-            }
-
-            const main=draggedGroup.find(gt=>gt.id===draggedTile.id);
-            const mainDropX = e.clientX - paneRect.left - (draggedTile.startX - main.x);
-            const mainDropY = e.clientY - paneRect.top  - (draggedTile.startY - main.y);
-
-            const nearMain=findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
-            let snapAdj={dx:0, dy:0, groupId:null};
-            if(nearMain.length>0){
-              const closest=nearMain[0];
-              snapAdj.dx = closest.snapX - mainDropX;
-              snapAdj.dy = closest.snapY - mainDropY;
-              snapAdj.groupId = closest.tile.groupId || closest.tile.id;
-            }
-
-            tiles = tiles.map(t=>{
-              const inGroup=draggedGroup.some(gt=>gt.id===t.id);
-              if(!inGroup) return t;
-              const before=draggedGroup.find(gt=>gt.id===draggedTile.id);
-              const offX=t.x - before.x;
-              const offY=t.y - before.y;
-              const newX=mainDropX + offX + snapAdj.dx;
-              const newY=mainDropY + offY + snapAdj.dy;
-              return { ...t, x:newX, y:newY, groupId: snapAdj.groupId || null };
-            });
-
-            if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
-            recomputeGroupsAround(mainDropY + snapAdj.dy);
-          }
-        }
-      } else if(draggedTile.sourceType==='pane'){
-        if(draggedGroup.length>0){
-          const ids=new Set(draggedGroup.map(t=>t.id));
-          const originY=draggedGroup[0].y;
-          tiles=tiles.filter(t=>!ids.has(t.id));
-          if(dragStartRowY!==null) recomputeGroupsAround(originY);
-        }
-      }
-
-      finishDrop();
-
-      function finishDrop(){
-        draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane();
-      }
-    }
-
-    // ====== DRA
+    document.getElementById('lessonSelect').addEventListener('change',renderTray);
+    document.getElementById('resetButton').addEventListener('click',()=>{tiles=[];document.querySelector('.hint').style.display='block';});
+    setupDrawers(); renderTray();
+  </script>
+</body>
+</html>
