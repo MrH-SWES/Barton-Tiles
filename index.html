@@ -328,22 +328,39 @@
       });
     }
 
-    // ====== SNAP (edge-touch with vertical overlap) ======
+    // ====== SNAP (half-tile overlap detection) ======
     function findNearbyTiles(dropX, dropY, excludeId){
       const dragLeft=dropX, dragRight=dropX+TILE_SIZE, dragTop=dropY, dragBottom=dropY+TILE_SIZE;
+      const halfTile = TILE_SIZE / 2;
       const candidates=[];
+
       for(const tile of tiles){
         if(tile.id===excludeId) continue;
         const nbrLeft=tile.x, nbrRight=tile.x+TILE_SIZE, nbrTop=tile.y, nbrBottom=tile.y+TILE_SIZE;
+
+        // Check vertical overlap first
         const overlapY=Math.min(dragBottom,nbrBottom) - Math.max(dragTop,nbrTop);
         if(overlapY<=0 || overlapY<MIN_VERTICAL_OVERLAP) continue;
 
-        const leftGap=Math.abs(nbrRight - dragLeft);
-        if(leftGap<=SNAP_DISTANCE){
+        // Check if left half of drag tile overlaps with right half of stationary tile
+        const leftHalfDragStart = dragLeft;
+        const leftHalfDragEnd = dragLeft + halfTile;
+        const rightHalfNbrStart = nbrLeft + halfTile;
+        const rightHalfNbrEnd = nbrRight;
+
+        if(Math.max(leftHalfDragStart, rightHalfNbrStart) < Math.min(leftHalfDragEnd, rightHalfNbrEnd)){
+          // Snap to the right side of the stationary tile
           candidates.push({ tile, edge:'right', snapX:nbrRight, snapY:tile.y });
         }
-        const rightGap=Math.abs(nbrLeft - dragRight);
-        if(rightGap<=SNAP_DISTANCE){
+
+        // Check if right half of drag tile overlaps with left half of stationary tile
+        const rightHalfDragStart = dragLeft + halfTile;
+        const rightHalfDragEnd = dragRight;
+        const leftHalfNbrStart = nbrLeft;
+        const leftHalfNbrEnd = nbrLeft + halfTile;
+
+        if(Math.max(rightHalfDragStart, leftHalfNbrStart) < Math.min(rightHalfDragEnd, leftHalfNbrEnd)){
+          // Snap to the left side of the stationary tile
           candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY:tile.y });
         }
       }
