@@ -30,11 +30,17 @@
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
-    /* bottom dock: scrollable tile tray */
-    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:40vh;pointer-events:none;z-index:20}
+    /* bottom dock: scrollable tile tray with tabs */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:40vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
 
-    /* all tiles in scrollable area */
-    #baseTiles{position:absolute;left:0;right:0;bottom:0;top:0;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
+    /* drawer tabs */
+    #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
+    .drawer-tab{padding:12px 20px;background:var(--tab);color:var(--tab-ink);border:none;cursor:pointer;font-weight:700;font-size:14px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
+    .drawer-tab:hover{background:#52525b}
+    .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
+
+    /* tiles in scrollable area */
+    #baseTiles{flex:1;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
     .base-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
   </style>
 </head>
@@ -52,9 +58,18 @@
       </div>
     </div>
 
-    <!-- bottom dock with all tiles -->
+    <!-- bottom dock with drawer tabs -->
     <div id="bottomDock">
-      <!-- all tiles -->
+      <!-- drawer tabs -->
+      <div id="drawerTabs">
+        <button class="drawer-tab active" data-drawer="consonants">Consonants</button>
+        <button class="drawer-tab" data-drawer="vowels">Vowels</button>
+        <button class="drawer-tab" data-drawer="units">Units</button>
+        <button class="drawer-tab" data-drawer="endings">Endings</button>
+        <button class="drawer-tab" data-drawer="prefixes">Prefixes</button>
+        <button class="drawer-tab" data-drawer="roots">Roots</button>
+      </div>
+      <!-- tiles area -->
       <div id="baseTiles">
         <div class="base-row" id="baseRow"></div>
       </div>
@@ -88,7 +103,9 @@
 
     // ====== STATE ======
     let baseTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
+    let blueConsonants=[], yellowVowels=[]; // separate consonants and vowels
     let tiles=[]; // tiles on the pane
+    let activeDrawer='consonants'; // current drawer tab
 
     // drag state
     let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
@@ -177,53 +194,55 @@
         if(L.purple) purpleTiles.push(...L.purple);
       }
 
-      allBlue=getUniqueSorted(allBlue);
-      allYellow=getUniqueSorted(allYellow);
+      // sort and organize by category
+      blueConsonants=getUniqueSorted(allBlue);
+      yellowVowels=getUniqueSorted(allYellow);
       redTiles=getUniqueSorted(redTiles);
       greenTiles=getUniqueSorted(greenTiles);
       orangeTiles=getUniqueSorted(orangeTiles);
       purpleTiles=getUniqueSorted(purpleTiles);
 
-      // combine blue and yellow for alphabet tiles, then sort alphabetically
-      // vowels should be yellow, consonants should be blue
-      const vowelSet = new Set(allYellow);
-      const allLetters = [...new Set([...allBlue, ...allYellow])];
+      // render only the active drawer
+      renderActiveDrawer();
+    }
 
-      // sort alphabetically, with special handling for multi-character tiles
-      allLetters.sort((a, b) => {
-        // single letters come before multi-character tiles
-        if (a.length === 1 && b.length > 1) return -1;
-        if (a.length > 1 && b.length === 1) return 1;
-        // otherwise alphabetical
-        return a.localeCompare(b);
-      });
-
-      // combine all tiles for display
-      baseTiles = [...allLetters, ...redTiles, ...greenTiles, ...orangeTiles, ...purpleTiles];
-
+    function renderActiveDrawer(){
       const baseRow = document.getElementById('baseRow');
       baseRow.innerHTML = '';
 
-      // render all tiles
-      allLetters.forEach(txt => {
-        const color = vowelSet.has(txt) ? 'yellow' : 'blue';
+      let tilesToRender = [];
+      let color = 'blue';
+
+      switch(activeDrawer){
+        case 'consonants':
+          tilesToRender = blueConsonants;
+          color = 'blue';
+          break;
+        case 'vowels':
+          tilesToRender = yellowVowels;
+          color = 'yellow';
+          break;
+        case 'units':
+          tilesToRender = redTiles;
+          color = 'red';
+          break;
+        case 'endings':
+          tilesToRender = greenTiles;
+          color = 'green';
+          break;
+        case 'prefixes':
+          tilesToRender = orangeTiles;
+          color = 'orange';
+          break;
+        case 'roots':
+          tilesToRender = purpleTiles;
+          color = 'purple';
+          break;
+      }
+
+      // render tiles for active drawer
+      tilesToRender.forEach(txt => {
         baseRow.appendChild(createTile(txt, color, 'tray'));
-      });
-
-      redTiles.forEach(txt => {
-        baseRow.appendChild(createTile(txt, 'red', 'tray'));
-      });
-
-      greenTiles.forEach(txt => {
-        baseRow.appendChild(createTile(txt, 'green', 'tray'));
-      });
-
-      orangeTiles.forEach(txt => {
-        baseRow.appendChild(createTile(txt, 'orange', 'tray'));
-      });
-
-      purpleTiles.forEach(txt => {
-        baseRow.appendChild(createTile(txt, 'purple', 'tray'));
       });
     }
 
@@ -432,9 +451,34 @@
     }
     function clearDragVisual(){ document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove()); }
 
+    // ====== DRAWER TAB SWITCHING ======
+    function switchDrawer(drawerName){
+      activeDrawer = drawerName;
+
+      // update tab active states
+      document.querySelectorAll('.drawer-tab').forEach(tab => {
+        if(tab.dataset.drawer === drawerName){
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+
+      // render the new drawer
+      renderActiveDrawer();
+    }
+
     // ====== BOOT ======
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
     document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
+
+    // setup drawer tab listeners
+    document.querySelectorAll('.drawer-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchDrawer(tab.dataset.drawer);
+      });
+    });
 
     renderTray();
     renderWordPane();
