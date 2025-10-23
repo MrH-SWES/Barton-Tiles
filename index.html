@@ -16,8 +16,8 @@
 
     #app{position:relative;height:100%;width:100%}
 
-    /* workspace leaves room for tile dock (max 32vh) */
-    #wordPane{position:absolute;inset:0 0 32vh 0;background:transparent;overflow:hidden}
+    /* workspace leaves room for tile dock (max 24vh) */
+    #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
 
     .tile{width:52px;height:52px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
@@ -31,15 +31,15 @@
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
     /* permanent alphabet section */
-    #alphabetSection{position:absolute;left:0;right:0;bottom:32vh;background:#f9fafb;padding:6px 8px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:4px}
-    .alphabet-row{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+    #alphabetSection{position:absolute;left:0;right:0;bottom:24vh;background:#f9fafb;padding:4px 6px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:3px}
+    .alphabet-row{display:flex;gap:3px;justify-content:center;flex-wrap:wrap}
 
     /* bottom dock: scrollable tile tray with tabs */
-    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:32vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:24vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
 
     /* drawer tabs */
     #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
-    .drawer-tab{padding:8px 16px;background:var(--tab);border:none;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
+    .drawer-tab{padding:6px 12px;background:var(--tab);border:none;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
     .drawer-tab:hover{background:#52525b}
     .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
     .drawer-tab.blue-text{color:#60a5fa}
@@ -50,8 +50,8 @@
     .drawer-tab.purple-text{color:#a78bfa}
 
     /* tiles in scrollable area */
-    #baseTiles{flex:1;background:var(--tray);padding:6px 8px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
-    .base-row{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
+    .base-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
 
     /* Chromebook optimizations */
     @media screen and (max-width: 1440px) {
@@ -61,21 +61,21 @@
 
     /* Smaller Chromebook screens (1366x768 and similar) */
     @media screen and (max-width: 1366px) {
-      #bottomDock{height:30vh}
-      #wordPane{inset:0 0 30vh 0}
-      #alphabetSection{bottom:30vh;padding:4px 6px;gap:3px}
-      .alphabet-row{gap:3px}
-      .drawer-tab{padding:6px 12px;font-size:12px}
-      #baseTiles{padding:5px 6px}
-      .base-row{gap:3px}
+      #bottomDock{height:22vh}
+      #wordPane{inset:0 0 22vh 0}
+      #alphabetSection{bottom:22vh;padding:3px 5px;gap:2px}
+      .alphabet-row{gap:2px}
+      .drawer-tab{padding:5px 10px;font-size:11px}
+      #baseTiles{padding:4px 5px}
+      .base-row{gap:2px}
       .hint{font-size:15px}
     }
 
     /* Very small screens (touch optimized) */
     @media screen and (max-height: 800px) {
-      #bottomDock{height:28vh}
-      #wordPane{inset:0 0 28vh 0}
-      #alphabetSection{bottom:28vh;padding:4px 6px}
+      #bottomDock{height:20vh}
+      #wordPane{inset:0 0 20vh 0}
+      #alphabetSection{bottom:20vh;padding:3px 5px}
     }
   </style>
 </head>
@@ -347,7 +347,18 @@
           candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY:tile.y });
         }
       }
+
+      // Sort to prioritize snapping to groups (contiguous letter units)
       candidates.sort((a,b)=>{
+        // Check if tiles are part of groups (have neighbors)
+        const aHasGroup = hasAdjacentTile(a.tile, a.edge);
+        const bHasGroup = hasAdjacentTile(b.tile, b.edge);
+
+        // Strongly prefer snapping to tiles that are part of groups
+        if(aHasGroup && !bHasGroup) return -1;
+        if(!aHasGroup && bHasGroup) return 1;
+
+        // If both have groups or both don't, sort by distance
         const ax=Math.abs(a.edge==='right'?(a.tile.x+TILE_SIZE)-dragLeft : a.tile.x - dragRight);
         const bx=Math.abs(b.edge==='right'?(b.tile.x+TILE_SIZE)-dragLeft : b.tile.x - dragRight);
         if(ax!==bx) return ax-bx;
@@ -355,6 +366,27 @@
         return ay - by;
       });
       return candidates;
+    }
+
+    // Helper to check if a tile has an adjacent tile on the opposite side
+    function hasAdjacentTile(tile, snapEdge){
+      // If snapping to the right edge, check if there's a tile to the tile's left
+      // If snapping to the left edge, check if there's a tile to the tile's right
+      const checkSide = snapEdge === 'right' ? 'left' : 'right';
+
+      for(const other of tiles){
+        if(other.id === tile.id) continue;
+        if(!sameRowY(other.y, tile.y)) continue;
+
+        if(checkSide === 'left'){
+          // Check if other is flush to the left of tile
+          if(areFlush(other, tile)) return true;
+        } else {
+          // Check if other is flush to the right of tile
+          if(areFlush(tile, other)) return true;
+        }
+      }
+      return false;
     }
 
     // ====== POINTERS / DRAG ======
