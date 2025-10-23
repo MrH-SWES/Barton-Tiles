@@ -131,80 +131,149 @@
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
 
-    // ====== AUDIO ======
+    // ====== TTS AUDIO ======
     let audioEnabled = true;
+    const synth = window.speechSynthesis;
 
-    // Map tile text to audio file names
-    const AUDIO_MAP = {
-      // Single letters - consonants
-      'b': 'b-bat.mp3', 'c': 'c-cut.mp3', 'd': 'd-dip.mp3', 'f': 'f-fun.mp3',
-      'g': 'g-get.mp3', 'h': 'h-hat.mp3', 'j': 'j-jog.mp3', 'k': 'k-kit.mp3',
-      'l': 'l-lip.mp3', 'm': 'm-mug.mp3', 'n': 'n-nap.mp3', 'p': 'p-pick.mp3',
-      'r': 'r-rid.mp3', 's': 's-sit-mess.mp3', 't': 't-tuck.mp3', 'v': 'v-van.mp3',
-      'w': 'w-will.mp3', 'x': 'x-mix-rocks.mp3', 'y': 'y-yes.mp3', 'z': 'z-zip-buzz.mp3',
+    // Map tile text to phonetic pronunciations for TTS
+    // Using phonetic spellings that TTS engines can pronounce correctly
+    const PHONEME_MAP = {
+      // Single letters - consonants (isolated sounds)
+      'b': 'buh', 'c': 'kuh', 'd': 'duh', 'f': 'fff',
+      'g': 'guh', 'h': 'huh', 'j': 'juh', 'k': 'kuh',
+      'l': 'lll', 'm': 'mmm', 'n': 'nnn', 'p': 'puh',
+      'r': 'rrr', 's': 'sss', 't': 'tuh', 'v': 'vvv',
+      'w': 'wuh', 'x': 'ks', 'y': 'yuh', 'z': 'zzz',
 
-      // Single letters - vowels
-      'a': 'a-apple.mp3', 'e': 'e-elephant.mp3', 'i': 'i-igloo.mp3',
-      'o': 'o-octopus.mp3', 'u': 'u-up.mp3',
+      // Single letters - vowels (short sounds)
+      'a': 'ah', 'e': 'eh', 'i': 'ih',
+      'o': 'ah', 'u': 'uh',
 
       // Consonant digraphs
-      'ch': 'ch-chick.mp3', 'sh': 'sh-ship.mp3', 'th': 'th-thin.mp3',
-      'wh': 'hw-whip.mp3', 'qu': 'qu-quest.mp3', 'ck': 'k-kit.mp3',
-      'ph': 'f-fun.mp3', 'ng': 'ng-ring.mp3',
+      'ch': 'chuh', 'sh': 'shh', 'th': 'thh',
+      'wh': 'wh', 'qu': 'kwuh', 'ck': 'kuh',
+      'ph': 'fff', 'ng': 'ng',
 
       // Special consonants
-      'gn': 'n-gnome.mp3', 'kn': 'n-knife.mp3', 'wr': 'wr-wrist.mp3',
-      'ps': 's-sit-mess.mp3', 'rh': 'r-rid.mp3', 'mn': 'n-nap.mp3',
-      'gh': 'g-get.mp3', 'gu': 'g-get.mp3', 'gue': 'g-get.mp3', 'que': 'k-kit.mp3',
+      'gn': 'nnn', 'kn': 'nnn', 'wr': 'rrr',
+      'ps': 'sss', 'rh': 'rrr', 'mn': 'nnn',
+      'gh': 'guh', 'gu': 'guh', 'gue': 'guh', 'que': 'kuh',
 
       // Vowel teams - long vowels
-      'ai': 'a-cake.mp3', 'ay': 'a-cake.mp3', 'ee': 'e-team.mp3',
-      'ea': 'e-team.mp3', 'oa': 'o-rope.mp3', 'oe': 'o-rope.mp3',
-      'ue': 'u-lute-glue.mp3', 'ew': 'oo-boot-new.mp3', 'ow': 'o-rope.mp3',
+      'ai': 'ay', 'ay': 'ay', 'ee': 'eee',
+      'ea': 'eee', 'oa': 'oh', 'oe': 'oh',
+      'ue': 'ooo', 'ew': 'ooo', 'ow': 'oh',
 
       // R-controlled vowels
-      'ar': 'ar-jar.mp3', 'or': 'or-fork.mp3', 'er': 'er-herd-bird-turn.mp3',
-      'ir': 'er-herd-bird-turn.mp3', 'ur': 'er-herd-bird-turn.mp3',
-      'ear': 'ear-hear.mp3', 'ure': 'ure-lure.mp3',
+      'ar': 'are', 'or': 'or', 'er': 'er',
+      'ir': 'er', 'ur': 'er',
+      'ear': 'ear', 'ure': 'oor',
 
       // Other vowel patterns
-      'oi': 'oi-soil-toy.mp3', 'oy': 'oi-soil-toy.mp3',
-      'au': 'aw-haul-hawk-ball.mp3', 'aw': 'aw-haul-hawk-ball.mp3',
-      'oo': 'oo-boot-new.mp3', 'ou': 'ou-how-out.mp3',
-      'ie': 'i-kite.mp3', 'igh': 'i-kite.mp3', 'ei': 'a-cake.mp3',
-      'eigh': 'a-cake.mp3', 'augh': 'aw-haul-hawk-ball.mp3',
-      'eu': 'u-lute-glue.mp3', 'tu': 'u-lute-glue.mp3', 'ey': 'a-cake.mp3',
-      'eau': 'o-rope.mp3', 'our': 'or-fork.mp3',
+      'oi': 'oy', 'oy': 'oy',
+      'au': 'aw', 'aw': 'aw',
+      'oo': 'ooo', 'ou': 'ow',
+      'ie': 'eye', 'igh': 'eye', 'ei': 'ay',
+      'eigh': 'ay', 'augh': 'aw',
+      'eu': 'yoo', 'tu': 'too', 'ey': 'ay',
+      'eau': 'oh', 'our': 'our',
 
-      // Units (red tiles)
-      'all': 'aw-haul-hawk-ball.mp3', 'ang': 'ng-ring.mp3', 'ing': 'ng-ring.mp3',
-      'ong': 'ng-ring.mp3', 'ung': 'ng-ring.mp3', 'ank': 'ng-ring.mp3',
-      'ink': 'ng-ring.mp3', 'onk': 'ng-ring.mp3', 'unk': 'ng-ring.mp3',
-      'oll': 'o-rope.mp3', 'old': 'o-rope.mp3', 'olt': 'o-rope.mp3',
-      'ost': 'o-rope.mp3', 'ild': 'i-kite.mp3', 'ind': 'i-kite.mp3',
+      // Units (red tiles) - blend sounds
+      'all': 'all', 'ang': 'ang', 'ing': 'ing',
+      'ong': 'ong', 'ung': 'ung', 'ank': 'ank',
+      'ink': 'ink', 'onk': 'onk', 'unk': 'unk',
+      'oll': 'ole', 'old': 'old', 'olt': 'olt',
+      'ost': 'ohst', 'ild': 'iled', 'ind': 'eyend',
 
-      // Endings - default to schwa or silent
-      'ture': 'er-herd-bird-turn.mp3'
+      // Endings (green tiles)
+      'ture': 'chur', 's': 'sss', 'es': 'ez', 'ed': 'ed',
+      'er': 'er', 'est': 'est', 'ist': 'ist', 'en': 'en',
+      'ish': 'ish', 'ity': 'ih tee', 'able': 'uh bull',
+      'tion': 'shun', 'sion': 'shun',
+      'ible': 'ih bull', 'ble': 'bull', 'cle': 'kull',
+      'dle': 'dull', 'fle': 'full', 'gle': 'gull',
+      'kle': 'kull', 'ple': 'pull', 'tle': 'tull', 'zle': 'zull',
+      'ary': 'air ee', 'ery': 'er ee', 'ory': 'or ee',
+
+      // Prefixes (orange tiles)
+      'dis': 'dis', 'in': 'in', 'un': 'un', 'non': 'non',
+      'mis': 'mis', 'sub': 'sub', 're': 'ree', 'pre': 'pree',
+      'inter': 'in ter', 'mid': 'mid', 'over': 'oh ver', 'up': 'up',
+      'ate': 'ate', 'ite': 'ite', 'ine': 'een',
+      'ice': 'ice', 'ace': 'ace', 'age': 'ij',
+
+      // Roots (purple tiles)
+      'astro': 'as tro', 'auto': 'aw toe', 'bio': 'bye oh',
+      'chron': 'kron', 'geo': 'jee oh', 'graph': 'graf',
+      'hydro': 'high dro', 'phon': 'fon', 'tele': 'tel eh',
+      'demo': 'dem oh', 'fac': 'fak', 'form': 'form',
+      'fort': 'fort', 'fract': 'frakt', 'ject': 'jekt',
+      'jud': 'jud', 'mal': 'mal', 'mater': 'may ter',
+      'mit': 'mit', 'mort': 'mort', 'multi': 'mul tee',
+      'pater': 'pay ter', 'port': 'port', 'rupt': 'rupt',
+      'scrib': 'skrib', 'script': 'skript', 'sect': 'sekt',
+      'sec': 'sek', 'sent': 'sent', 'spect': 'spekt',
+      'struct': 'strukt'
     };
 
     function playSound(text) {
-      if (!audioEnabled) return;
+      if (!audioEnabled || !synth) return;
 
-      const audioFile = AUDIO_MAP[text.toLowerCase()];
-      if (!audioFile) {
-        // If no exact match, try first letter for compounds
-        const firstLetter = text.charAt(0).toLowerCase();
-        if (AUDIO_MAP[firstLetter]) {
-          const audio = new Audio(`audio/${AUDIO_MAP[firstLetter]}`);
-          audio.volume = 0.6;
-          audio.play().catch(err => console.log('Audio play failed:', err));
+      const lowerText = text.toLowerCase();
+      const phoneme = PHONEME_MAP[lowerText];
+
+      if (!phoneme) {
+        // If no exact match, try first letter
+        const firstLetter = lowerText.charAt(0);
+        if (PHONEME_MAP[firstLetter]) {
+          speakPhoneme(PHONEME_MAP[firstLetter]);
         }
         return;
       }
 
-      const audio = new Audio(`audio/${audioFile}`);
-      audio.volume = 0.6;
-      audio.play().catch(err => console.log('Audio play failed:', err));
+      speakPhoneme(phoneme);
+    }
+
+    // Initialize voices
+    let voicesLoaded = false;
+    let preferredVoice = null;
+
+    function loadVoices() {
+      const voices = synth.getVoices();
+      if (voices.length > 0) {
+        voicesLoaded = true;
+        // Prefer Google or Microsoft voices for better quality
+        preferredVoice = voices.find(v =>
+          v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft'))
+        ) || voices.find(v => v.lang.startsWith('en'));
+      }
+    }
+
+    // Load voices on initialization and when they change
+    if (synth) {
+      loadVoices();
+      if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = loadVoices;
+      }
+    }
+
+    function speakPhoneme(phoneme) {
+      if (!synth) return;
+
+      // Cancel any ongoing speech
+      synth.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(phoneme);
+      utterance.rate = 0.7; // Slower for clearer pronunciation
+      utterance.pitch = 1.0;
+      utterance.volume = 0.9;
+
+      // Use preferred voice if available
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      synth.speak(utterance);
     }
 
     function toggleAudio() {
