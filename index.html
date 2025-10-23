@@ -17,7 +17,7 @@
     #app{position:relative;height:100%;width:100%}
 
     /* workspace leaves room for stacked drawers (max 60vh) */
-    #wordPane{position:absolute;inset:0 0 60vh 0;background:transparent;overflow:hidden}
+    #wordPane{position:absolute;inset:0 0 260px 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);color:#6b7280;font-size:18px;text-align:center;pointer-events:none}
 
     .tile{width:60px;height:60px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
@@ -30,27 +30,37 @@
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
-    /* bottom dock supports stacked, multi-open drawers; capped at 60vh */
-    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:60vh;pointer-events:none;z-index:20}
+    /* bottom dock: always-visible base + optional drawer above */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:260px;pointer-events:none;z-index:20}
 
-    /* two rows of tabs anchored to the very bottom */
-    .tabRows{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:40px 40px;gap:8px 10px;padding:10px 14px;pointer-events:auto}
-    .tab{background:var(--tab);border-radius:10px 10px 0 0;color:var(--tab-ink);display:flex;align-items:center;justify-content:center;font-weight:700;letter-spacing:.2px;box-shadow:0 -2px 6px rgba(0,0,0,.2),0 3px 8px var(--shadow);cursor:pointer;user-select:none}
-    .tab.dim{background:var(--tab-dim)}
-    .tab.disabled{opacity:.45;cursor:not-allowed}
+    /* always-visible base tiles (blue + yellow) */
+    #baseTiles{position:absolute;left:0;right:0;bottom:0;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3)}
+    .base-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
+    .base-row:last-child{margin-bottom:0}
 
-    /* drawer content panels are absolutely stacked above the tab rows */
-    .drawerContent{
-      position:absolute;left:14px;right:14px;
+    /* special drawer tabs above base */
+    .drawerTabs{position:absolute;left:12px;right:12px;bottom:140px;display:flex;gap:8px;justify-content:center;pointer-events:auto}
+    .drawer-tab{background:#374151;color:#fff;border-radius:8px 8px 0 0;padding:8px 16px;cursor:pointer;user-select:none;font-weight:700;font-size:14px;box-shadow:0 -2px 6px rgba(0,0,0,.25);transition:background .2s}
+    .drawer-tab:hover{background:#4b5563}
+    .drawer-tab.active{background:#1f2937}
+    .drawer-tab.disabled{opacity:.4;cursor:not-allowed}
+    .drawer-tab.red-text{color:#f87171}
+    .drawer-tab.green-text{color:#4ade80}
+    .drawer-tab.orange-text{color:#fb923c}
+    .drawer-tab.purple-text{color:#a78bfa}
+
+    /* special drawer content */
+    .specialDrawer{
+      position:absolute;left:12px;right:12px;bottom:180px;
       background:var(--tray);border-radius:12px 12px 0 0;
-      padding:10px 12px;box-shadow:0 -6px 12px rgba(0,0,0,.35);
-      height:0;overflow:hidden;transform:translateY(100%);opacity:0;pointer-events:none;
-      transition:transform .22s ease,height .22s ease,opacity .22s ease;
+      padding:12px;box-shadow:0 -6px 12px rgba(0,0,0,.35);
+      height:0;overflow:hidden;opacity:0;pointer-events:none;
+      transition:height .25s ease,opacity .25s ease;
     }
-    .drawerContent.open{opacity:1;pointer-events:auto;transform:translateY(0)}
+    .specialDrawer.open{opacity:1;pointer-events:auto;height:120px}
 
-    .tile-row{display:flex;flex-wrap:nowrap;gap:8px;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding-bottom:6px}
-    .legend{color:#e5e7eb;font-size:12px;margin:0 0 6px;text-align:left}
+    .tile-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:100%}
+    .legend{color:#e5e7eb;font-size:13px;margin:0 0 8px;text-align:left;font-weight:700}
   </style>
 </head>
 <body>
@@ -67,24 +77,26 @@
       </div>
     </div>
 
-    <!-- stacked drawers -->
+    <!-- bottom dock with always-visible base and optional special drawer -->
     <div id="bottomDock">
-      <!-- content panels (stacked above tab rows) -->
-      <div id="panel-blue"   class="drawerContent"><div class="legend">Blue</div>   <div class="tile-row" id="row-blue"></div></div>
-      <div id="panel-yellow" class="drawerContent"><div class="legend">Yellow</div> <div class="tile-row" id="row-yellow"></div></div>
-      <div id="panel-red"    class="drawerContent"><div class="legend">Red</div>    <div class="tile-row" id="row-red"></div></div>
-      <div id="panel-green"  class="drawerContent"><div class="legend">Green</div>  <div class="tile-row" id="row-green"></div></div>
-      <div id="panel-orange" class="drawerContent"><div class="legend">Orange</div> <div class="tile-row" id="row-orange"></div></div>
-      <div id="panel-purple" class="drawerContent"><div class="legend">Purple</div> <div class="tile-row" id="row-purple"></div></div>
+      <!-- special drawer (opens above base tiles) -->
+      <div id="specialDrawer" class="specialDrawer">
+        <div class="legend" id="drawerLegend"></div>
+        <div class="tile-row" id="drawerContent"></div>
+      </div>
 
-      <!-- two rows of tabs at the bottom -->
-      <div class="tabRows">
-        <div class="tab" id="tab-blue">Blue</div>
-        <div class="tab" id="tab-yellow">Yellow</div>
-        <div class="tab" id="tab-red">Red</div>
-        <div class="tab" id="tab-green">Green</div>
-        <div class="tab" id="tab-orange">Orange</div>
-        <div class="tab" id="tab-purple">Purple</div>
+      <!-- drawer tabs -->
+      <div class="drawerTabs">
+        <div class="drawer-tab red-text" id="tab-red">Units</div>
+        <div class="drawer-tab green-text" id="tab-green">Suffixes</div>
+        <div class="drawer-tab orange-text" id="tab-orange">Prefixes</div>
+        <div class="drawer-tab purple-text" id="tab-purple">Roots</div>
+      </div>
+
+      <!-- always-visible base tiles -->
+      <div id="baseTiles">
+        <div class="base-row" id="baseRow1"></div>
+        <div class="base-row" id="baseRow2"></div>
       </div>
     </div>
   </div>
@@ -98,8 +110,13 @@
     const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
 
-    const DRAWER_HEIGHT = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 140 : 120; // px
-    const TAB_ROWS_HEIGHT = 40*2 + 10 + 8; // two rows + padding + gap ≈ 98
+    // drawer labels
+    const DRAWER_LABELS = {
+      red: 'Units',
+      green: 'Suffixes',
+      orange: 'Prefixes',
+      purple: 'Roots'
+    };
 
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
@@ -118,14 +135,14 @@
     };
 
     // ====== STATE ======
-    let blueTiles=[], yellowTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
+    let baseTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
     let tiles=[]; // tiles on the pane
 
     // drag state
     let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
 
-    // open panels stack (IDs in bottom-up order)
-    const OPEN_STACK = []; // e.g., ["panel-blue","panel-yellow",...]
+    // open drawer
+    let openDrawer = null; // 'red', 'green', 'orange', or 'purple'
 
     // ====== UTIL ======
     function getFontSize(text){
@@ -183,46 +200,50 @@
       recomputeGroupsAround(rowY);
     }
 
-    // ====== DRAWERS (stack layout) ======
-    const COLORS = ["blue","yellow","red","green","orange","purple"];
-    function togglePanel(color){
-      const pid = `panel-${color}`;
-      const panel = document.getElementById(pid);
-      if(panel.classList.contains('open')){
-        panel.classList.remove('open'); panel.style.height="0px";
-        const i=OPEN_STACK.indexOf(pid); if(i>=0) OPEN_STACK.splice(i,1);
-      }else{
-        panel.classList.add('open'); panel.style.height = `${DRAWER_HEIGHT}px`;
-        // move to top of stack
-        const i=OPEN_STACK.indexOf(pid); if(i>=0) OPEN_STACK.splice(i,1);
-        OPEN_STACK.push(pid);
-      }
-      relayoutPanels();
-    }
+    // ====== DRAWERS ======
+    function toggleDrawer(color){
+      const specialColors = ['red', 'green', 'orange', 'purple'];
+      if(!specialColors.includes(color)) return;
 
-    function relayoutPanels(){
-      // position each open panel bottom-up above the two tab rows
-      OPEN_STACK.forEach((pid, idx)=>{
-        const panel = document.getElementById(pid);
-        const bottomOffset = TAB_ROWS_HEIGHT + idx*(DRAWER_HEIGHT+8);
-        panel.style.bottom = `${bottomOffset}px`;
-      });
-      // any closed ones park just above tabs (but hidden via height/transform)
-      COLORS.forEach(c=>{
-        const p=document.getElementById(`panel-${c}`);
-        if(!p.classList.contains('open')) p.style.bottom = `${TAB_ROWS_HEIGHT}px`;
-      });
+      const drawer = document.getElementById('specialDrawer');
+      const tab = document.getElementById(`tab-${color}`);
+
+      // check if this drawer has content
+      const data = { red: redTiles, green: greenTiles, orange: orangeTiles, purple: purpleTiles }[color];
+      if(!data || data.length === 0) return;
+
+      // toggle: if already open, close it; otherwise switch to this drawer
+      if(openDrawer === color){
+        drawer.classList.remove('open');
+        tab.classList.remove('active');
+        openDrawer = null;
+      } else {
+        // clear previous active tab
+        if(openDrawer){
+          document.getElementById(`tab-${openDrawer}`).classList.remove('active');
+        }
+
+        // populate and open this drawer
+        openDrawer = color;
+        tab.classList.add('active');
+
+        const legend = document.getElementById('drawerLegend');
+        const content = document.getElementById('drawerContent');
+
+        legend.textContent = DRAWER_LABELS[color];
+        legend.style.color = { red: '#f87171', green: '#4ade80', orange: '#fb923c', purple: '#a78bfa' }[color];
+
+        content.innerHTML = '';
+        data.forEach(txt => content.appendChild(createTile(txt, color, 'tray')));
+
+        drawer.classList.add('open');
+      }
     }
 
     function bindTabs(){
-      COLORS.forEach(color=>{
+      ['red', 'green', 'orange', 'purple'].forEach(color => {
         const tab = document.getElementById(`tab-${color}`);
-        tab.addEventListener('click', ()=>{
-          const rowEl = document.getElementById(`row-${color}`);
-          const isEmpty = !rowEl || rowEl.children.length===0;
-          if(isEmpty){ /* keep tab visible but do nothing */ return; }
-          togglePanel(color);
-        });
+        tab.addEventListener('click', () => toggleDrawer(color));
       });
     }
 
@@ -239,51 +260,70 @@
 
     function renderTray(){
       const lvl=parseInt(document.getElementById('lessonSelect').value,10);
-      blueTiles=[]; yellowTiles=[]; redTiles=[]; greenTiles=[]; orangeTiles=[]; purpleTiles=[];
+
+      // collect all blue and yellow tiles for base (always visible)
+      let allBlue=[], allYellow=[];
+      redTiles=[]; greenTiles=[]; orangeTiles=[]; purpleTiles=[];
+
       for(let i=2;i<=lvl;i++){
         const L=B_LEVELS[i]; if(!L) continue;
-        if(L.blue)   blueTiles.push(...L.blue);
-        if(L.yellow) yellowTiles.push(...L.yellow);
+        if(L.blue)   allBlue.push(...L.blue);
+        if(L.yellow) allYellow.push(...L.yellow);
         if(L.red)    redTiles.push(...L.red);
         if(L.green)  greenTiles.push(...L.green);
         if(L.orange) orangeTiles.push(...L.orange);
         if(L.purple) purpleTiles.push(...L.purple);
       }
-      blueTiles=getUniqueSorted(blueTiles);
-      yellowTiles=getUniqueSorted(yellowTiles);
+
+      allBlue=getUniqueSorted(allBlue);
+      allYellow=getUniqueSorted(allYellow);
       redTiles=getUniqueSorted(redTiles);
       greenTiles=getUniqueSorted(greenTiles);
       orangeTiles=getUniqueSorted(orangeTiles);
       purpleTiles=getUniqueSorted(purpleTiles);
 
-      const buckets = {
-        blue: blueTiles, yellow: yellowTiles, red: redTiles,
-        green: greenTiles, orange: orangeTiles, purple: purpleTiles
-      };
+      // combine blue and yellow for base tiles, split into two rows
+      baseTiles = [...allBlue, ...allYellow];
+      const midpoint = Math.ceil(baseTiles.length / 2);
 
-      COLORS.forEach(color=>{
-        const row = document.getElementById(`row-${color}`);
+      const row1 = document.getElementById('baseRow1');
+      const row2 = document.getElementById('baseRow2');
+      row1.innerHTML = '';
+      row2.innerHTML = '';
+
+      baseTiles.slice(0, midpoint).forEach(txt => {
+        const color = allBlue.includes(txt) ? 'blue' : 'yellow';
+        row1.appendChild(createTile(txt, color, 'tray'));
+      });
+
+      baseTiles.slice(midpoint).forEach(txt => {
+        const color = allBlue.includes(txt) ? 'blue' : 'yellow';
+        row2.appendChild(createTile(txt, color, 'tray'));
+      });
+
+      // update drawer tab states
+      const drawerData = { red: redTiles, green: greenTiles, orange: orangeTiles, purple: purpleTiles };
+      ['red', 'green', 'orange', 'purple'].forEach(color => {
         const tab = document.getElementById(`tab-${color}`);
-        row.innerHTML='';
-        const arr = buckets[color];
-        if(!arr || arr.length===0){
+        if(!drawerData[color] || drawerData[color].length === 0){
           tab.classList.add('disabled');
-        }else{
+        } else {
           tab.classList.remove('disabled');
-          arr.forEach(txt=> row.appendChild(createTile(txt, color, 'tray')));
         }
       });
 
-      // close any open panels that became empty
-      [...OPEN_STACK].forEach(pid=>{
-        const color = pid.split('-')[1];
-        if(document.getElementById(`row-${color}`).children.length===0){
-          document.getElementById(pid).classList.remove('open');
-          document.getElementById(pid).style.height="0px";
-          OPEN_STACK.splice(OPEN_STACK.indexOf(pid),1);
-        }
-      });
-      relayoutPanels();
+      // close drawer if it became empty
+      if(openDrawer && (!drawerData[openDrawer] || drawerData[openDrawer].length === 0)){
+        document.getElementById('specialDrawer').classList.remove('open');
+        document.getElementById(`tab-${openDrawer}`).classList.remove('active');
+        openDrawer = null;
+      }
+      // refresh open drawer content if still valid
+      else if(openDrawer && drawerData[openDrawer] && drawerData[openDrawer].length > 0){
+        const content = document.getElementById('drawerContent');
+        content.innerHTML = '';
+        drawerData[openDrawer].forEach(txt => content.appendChild(createTile(txt, openDrawer, 'tray')));
+      }
     }
 
     function renderWordPane(){
