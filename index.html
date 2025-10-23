@@ -16,8 +16,8 @@
 
     #app{position:relative;height:100%;width:100%}
 
-    /* workspace leaves room for stacked drawers (max 60vh) */
-    #wordPane{position:absolute;inset:0 0 260px 0;background:transparent;overflow:hidden}
+    /* workspace leaves room for tile dock (max 40vh) */
+    #wordPane{position:absolute;inset:0 0 40vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);color:#6b7280;font-size:18px;text-align:center;pointer-events:none}
 
     .tile{width:60px;height:60px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
@@ -30,37 +30,12 @@
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
-    /* bottom dock: always-visible base + optional drawer above */
-    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:260px;pointer-events:none;z-index:20}
+    /* bottom dock: scrollable tile tray */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:40vh;pointer-events:none;z-index:20}
 
-    /* always-visible base tiles (blue + yellow) */
-    #baseTiles{position:absolute;left:0;right:0;bottom:0;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3)}
-    .base-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
-    .base-row:last-child{margin-bottom:0}
-
-    /* special drawer tabs above base */
-    .drawerTabs{position:absolute;left:12px;right:12px;bottom:140px;display:flex;gap:8px;justify-content:center;pointer-events:auto}
-    .drawer-tab{background:#374151;color:#fff;border-radius:8px 8px 0 0;padding:8px 16px;cursor:pointer;user-select:none;font-weight:700;font-size:14px;box-shadow:0 -2px 6px rgba(0,0,0,.25);transition:background .2s}
-    .drawer-tab:hover{background:#4b5563}
-    .drawer-tab.active{background:#1f2937}
-    .drawer-tab.disabled{opacity:.4;cursor:not-allowed}
-    .drawer-tab.red-text{color:#f87171}
-    .drawer-tab.green-text{color:#4ade80}
-    .drawer-tab.orange-text{color:#fb923c}
-    .drawer-tab.purple-text{color:#a78bfa}
-
-    /* special drawer content */
-    .specialDrawer{
-      position:absolute;left:12px;right:12px;bottom:180px;
-      background:var(--tray);border-radius:12px 12px 0 0;
-      padding:12px;box-shadow:0 -6px 12px rgba(0,0,0,.35);
-      height:0;overflow:hidden;opacity:0;pointer-events:none;
-      transition:height .25s ease,opacity .25s ease;
-    }
-    .specialDrawer.open{opacity:1;pointer-events:auto;height:120px}
-
-    .tile-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:100%}
-    .legend{color:#e5e7eb;font-size:13px;margin:0 0 8px;text-align:left;font-weight:700}
+    /* all tiles in scrollable area */
+    #baseTiles{position:absolute;left:0;right:0;bottom:0;top:0;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
+    .base-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
   </style>
 </head>
 <body>
@@ -77,26 +52,11 @@
       </div>
     </div>
 
-    <!-- bottom dock with always-visible base and optional special drawer -->
+    <!-- bottom dock with all tiles -->
     <div id="bottomDock">
-      <!-- special drawer (opens above base tiles) -->
-      <div id="specialDrawer" class="specialDrawer">
-        <div class="legend" id="drawerLegend"></div>
-        <div class="tile-row" id="drawerContent"></div>
-      </div>
-
-      <!-- drawer tabs -->
-      <div class="drawerTabs">
-        <div class="drawer-tab red-text" id="tab-red">Units</div>
-        <div class="drawer-tab green-text" id="tab-green">Suffixes</div>
-        <div class="drawer-tab orange-text" id="tab-orange">Prefixes</div>
-        <div class="drawer-tab purple-text" id="tab-purple">Roots</div>
-      </div>
-
-      <!-- always-visible base tiles -->
+      <!-- all tiles -->
       <div id="baseTiles">
-        <div class="base-row" id="baseRow1"></div>
-        <div class="base-row" id="baseRow2"></div>
+        <div class="base-row" id="baseRow"></div>
       </div>
     </div>
   </div>
@@ -109,14 +69,6 @@
     const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
     const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
-
-    // drawer labels
-    const DRAWER_LABELS = {
-      red: 'Units',
-      green: 'Suffixes',
-      orange: 'Prefixes',
-      purple: 'Roots'
-    };
 
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
@@ -140,9 +92,6 @@
 
     // drag state
     let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
-
-    // open drawer
-    let openDrawer = null; // 'red', 'green', 'orange', or 'purple'
 
     // ====== UTIL ======
     function getFontSize(text){
@@ -200,53 +149,6 @@
       recomputeGroupsAround(rowY);
     }
 
-    // ====== DRAWERS ======
-    function toggleDrawer(color){
-      const specialColors = ['red', 'green', 'orange', 'purple'];
-      if(!specialColors.includes(color)) return;
-
-      const drawer = document.getElementById('specialDrawer');
-      const tab = document.getElementById(`tab-${color}`);
-
-      // check if this drawer has content
-      const data = { red: redTiles, green: greenTiles, orange: orangeTiles, purple: purpleTiles }[color];
-      if(!data || data.length === 0) return;
-
-      // toggle: if already open, close it; otherwise switch to this drawer
-      if(openDrawer === color){
-        drawer.classList.remove('open');
-        tab.classList.remove('active');
-        openDrawer = null;
-      } else {
-        // clear previous active tab
-        if(openDrawer){
-          document.getElementById(`tab-${openDrawer}`).classList.remove('active');
-        }
-
-        // populate and open this drawer
-        openDrawer = color;
-        tab.classList.add('active');
-
-        const legend = document.getElementById('drawerLegend');
-        const content = document.getElementById('drawerContent');
-
-        legend.textContent = DRAWER_LABELS[color];
-        legend.style.color = { red: '#f87171', green: '#4ade80', orange: '#fb923c', purple: '#a78bfa' }[color];
-
-        content.innerHTML = '';
-        data.forEach(txt => content.appendChild(createTile(txt, color, 'tray')));
-
-        drawer.classList.add('open');
-      }
-    }
-
-    function bindTabs(){
-      ['red', 'green', 'orange', 'purple'].forEach(color => {
-        const tab = document.getElementById(`tab-${color}`);
-        tab.addEventListener('click', () => toggleDrawer(color));
-      });
-    }
-
     // ====== DOM BUILDERS ======
     function createTile(text,color,source){
       const el=document.createElement('div');
@@ -261,7 +163,7 @@
     function renderTray(){
       const lvl=parseInt(document.getElementById('lessonSelect').value,10);
 
-      // collect all blue and yellow tiles for base (always visible)
+      // collect all tiles
       let allBlue=[], allYellow=[];
       redTiles=[]; greenTiles=[]; orangeTiles=[]; purpleTiles=[];
 
@@ -282,48 +184,47 @@
       orangeTiles=getUniqueSorted(orangeTiles);
       purpleTiles=getUniqueSorted(purpleTiles);
 
-      // combine blue and yellow for base tiles, split into two rows
-      baseTiles = [...allBlue, ...allYellow];
-      const midpoint = Math.ceil(baseTiles.length / 2);
+      // combine blue and yellow for alphabet tiles, then sort alphabetically
+      // vowels should be yellow, consonants should be blue
+      const vowelSet = new Set(allYellow);
+      const allLetters = [...new Set([...allBlue, ...allYellow])];
 
-      const row1 = document.getElementById('baseRow1');
-      const row2 = document.getElementById('baseRow2');
-      row1.innerHTML = '';
-      row2.innerHTML = '';
-
-      baseTiles.slice(0, midpoint).forEach(txt => {
-        const color = allBlue.includes(txt) ? 'blue' : 'yellow';
-        row1.appendChild(createTile(txt, color, 'tray'));
+      // sort alphabetically, with special handling for multi-character tiles
+      allLetters.sort((a, b) => {
+        // single letters come before multi-character tiles
+        if (a.length === 1 && b.length > 1) return -1;
+        if (a.length > 1 && b.length === 1) return 1;
+        // otherwise alphabetical
+        return a.localeCompare(b);
       });
 
-      baseTiles.slice(midpoint).forEach(txt => {
-        const color = allBlue.includes(txt) ? 'blue' : 'yellow';
-        row2.appendChild(createTile(txt, color, 'tray'));
+      // combine all tiles for display
+      baseTiles = [...allLetters, ...redTiles, ...greenTiles, ...orangeTiles, ...purpleTiles];
+
+      const baseRow = document.getElementById('baseRow');
+      baseRow.innerHTML = '';
+
+      // render all tiles
+      allLetters.forEach(txt => {
+        const color = vowelSet.has(txt) ? 'yellow' : 'blue';
+        baseRow.appendChild(createTile(txt, color, 'tray'));
       });
 
-      // update drawer tab states
-      const drawerData = { red: redTiles, green: greenTiles, orange: orangeTiles, purple: purpleTiles };
-      ['red', 'green', 'orange', 'purple'].forEach(color => {
-        const tab = document.getElementById(`tab-${color}`);
-        if(!drawerData[color] || drawerData[color].length === 0){
-          tab.classList.add('disabled');
-        } else {
-          tab.classList.remove('disabled');
-        }
+      redTiles.forEach(txt => {
+        baseRow.appendChild(createTile(txt, 'red', 'tray'));
       });
 
-      // close drawer if it became empty
-      if(openDrawer && (!drawerData[openDrawer] || drawerData[openDrawer].length === 0)){
-        document.getElementById('specialDrawer').classList.remove('open');
-        document.getElementById(`tab-${openDrawer}`).classList.remove('active');
-        openDrawer = null;
-      }
-      // refresh open drawer content if still valid
-      else if(openDrawer && drawerData[openDrawer] && drawerData[openDrawer].length > 0){
-        const content = document.getElementById('drawerContent');
-        content.innerHTML = '';
-        drawerData[openDrawer].forEach(txt => content.appendChild(createTile(txt, openDrawer, 'tray')));
-      }
+      greenTiles.forEach(txt => {
+        baseRow.appendChild(createTile(txt, 'green', 'tray'));
+      });
+
+      orangeTiles.forEach(txt => {
+        baseRow.appendChild(createTile(txt, 'orange', 'tray'));
+      });
+
+      purpleTiles.forEach(txt => {
+        baseRow.appendChild(createTile(txt, 'purple', 'tray'));
+      });
     }
 
     function renderWordPane(){
@@ -535,7 +436,6 @@
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
     document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
 
-    bindTabs();
     renderTray();
     renderWordPane();
   </script>
