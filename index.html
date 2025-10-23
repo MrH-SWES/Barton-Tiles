@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Barton Reading Tile Board — Color Drawers</title>
+  <title>Reading Tile Board</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -30,14 +30,24 @@
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
+    /* permanent alphabet section */
+    #alphabetSection{position:absolute;left:0;right:0;bottom:40vh;background:#f9fafb;padding:8px 12px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:6px}
+    .alphabet-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+
     /* bottom dock: scrollable tile tray with tabs */
     #bottomDock{position:absolute;left:0;right:0;bottom:0;height:40vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
 
     /* drawer tabs */
     #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
-    .drawer-tab{padding:12px 20px;background:var(--tab);color:var(--tab-ink);border:none;cursor:pointer;font-weight:700;font-size:14px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
+    .drawer-tab{padding:12px 20px;background:var(--tab);border:none;cursor:pointer;font-weight:700;font-size:14px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
     .drawer-tab:hover{background:#52525b}
     .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
+    .drawer-tab.blue-text{color:#60a5fa}
+    .drawer-tab.yellow-text{color:#fbbf24}
+    .drawer-tab.red-text{color:#f87171}
+    .drawer-tab.green-text{color:#4ade80}
+    .drawer-tab.orange-text{color:#fb923c}
+    .drawer-tab.purple-text{color:#a78bfa}
 
     /* tiles in scrollable area */
     #baseTiles{flex:1;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -58,16 +68,22 @@
       </div>
     </div>
 
+    <!-- permanent alphabet section -->
+    <div id="alphabetSection">
+      <div class="alphabet-row" id="alphabetRow1"></div>
+      <div class="alphabet-row" id="alphabetRow2"></div>
+    </div>
+
     <!-- bottom dock with drawer tabs -->
     <div id="bottomDock">
       <!-- drawer tabs -->
       <div id="drawerTabs">
-        <button class="drawer-tab active" data-drawer="consonants">Consonants</button>
-        <button class="drawer-tab" data-drawer="vowels">Vowels</button>
-        <button class="drawer-tab" data-drawer="units">Units</button>
-        <button class="drawer-tab" data-drawer="endings">Endings</button>
-        <button class="drawer-tab" data-drawer="prefixes">Prefixes</button>
-        <button class="drawer-tab" data-drawer="roots">Roots</button>
+        <button class="drawer-tab active blue-text" data-drawer="consonants">Consonants</button>
+        <button class="drawer-tab yellow-text" data-drawer="vowels">Vowels</button>
+        <button class="drawer-tab red-text" data-drawer="units">Units</button>
+        <button class="drawer-tab green-text" data-drawer="endings">Endings</button>
+        <button class="drawer-tab orange-text" data-drawer="prefixes">Prefixes</button>
+        <button class="drawer-tab purple-text" data-drawer="roots">Roots</button>
       </div>
       <!-- tiles area -->
       <div id="baseTiles">
@@ -215,11 +231,11 @@
 
       switch(activeDrawer){
         case 'consonants':
-          tilesToRender = blueConsonants;
+          tilesToRender = blueConsonants.filter(c => c.length > 1); // exclude single letters
           color = 'blue';
           break;
         case 'vowels':
-          tilesToRender = yellowVowels;
+          tilesToRender = yellowVowels.filter(v => v.length > 1); // exclude single letters
           color = 'yellow';
           break;
         case 'units':
@@ -243,6 +259,27 @@
       // render tiles for active drawer
       tilesToRender.forEach(txt => {
         baseRow.appendChild(createTile(txt, color, 'tray'));
+      });
+    }
+
+    function renderAlphabet(){
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+      const vowels = new Set(['a', 'e', 'i', 'o', 'u']);
+
+      // First row: a-m (13 letters)
+      const row1 = document.getElementById('alphabetRow1');
+      row1.innerHTML = '';
+      alphabet.slice(0, 13).forEach(letter => {
+        const color = vowels.has(letter) ? 'yellow' : 'blue';
+        row1.appendChild(createTile(letter, color, 'alphabet'));
+      });
+
+      // Second row: n-z (13 letters)
+      const row2 = document.getElementById('alphabetRow2');
+      row2.innerHTML = '';
+      alphabet.slice(13, 26).forEach(letter => {
+        const color = vowels.has(letter) ? 'yellow' : 'blue';
+        row2.appendChild(createTile(letter, color, 'alphabet'));
       });
     }
 
@@ -327,7 +364,7 @@
     function beginDrag(g, targetRect, dx=0, dy=0){
       const startX=g.startX, startY=g.startY, source=g.source;
 
-      if(source==='tray'){
+      if(source==='tray' || source==='alphabet'){
         draggedTile={ text:g.text, color:g.color, x:startX, y:startY, sourceType:'tray', startX, startY };
         draggedGroup=[]; dragStartRowY=null;
       } else {
@@ -480,6 +517,7 @@
       });
     });
 
+    renderAlphabet();
     renderTray();
     renderWordPane();
   </script>
