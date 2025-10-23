@@ -29,7 +29,6 @@
     #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
-    .btn.audio{background:#059669}.btn.audio.muted{background:#6b7280}
 
     /* permanent alphabet section */
     #alphabetSection{position:absolute;left:0;right:0;bottom:24vh;background:#f9fafb;padding:4px 6px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:3px}
@@ -50,9 +49,9 @@
     .drawer-tab.orange-text{color:#fb923c}
     .drawer-tab.purple-text{color:#a78bfa}
 
-    /* tiles in scrollable area */
-    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;-webkit-overflow-scrolling:touch}
-    .base-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
+    /* tiles area - no scrolling */
+    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center}
+    .base-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;width:100%}
 
     /* Chromebook optimizations */
     @media screen and (max-width: 1440px) {
@@ -90,7 +89,6 @@
           <option value="5">Book 5</option><option value="6">Book 6</option><option value="7">Book 7</option>
           <option value="8">Book 8</option><option value="9">Book 9</option><option value="10">Book 10</option>
         </select>
-        <button id="audioToggle" class="btn audio">🔊 Sound</button>
         <button id="resetButton" class="btn danger">Reset</button>
       </div>
     </div>
@@ -130,163 +128,6 @@
 
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
-
-    // ====== TTS AUDIO ======
-    let audioEnabled = true;
-    const synth = window.speechSynthesis;
-
-    // Map tile text to phonetic pronunciations for TTS
-    // Using phonetic spellings that TTS engines can pronounce correctly
-    const PHONEME_MAP = {
-      // Single letters - consonants (isolated sounds)
-      'b': 'buh', 'c': 'kuh', 'd': 'duh', 'f': 'fff',
-      'g': 'guh', 'h': 'huh', 'j': 'juh', 'k': 'kuh',
-      'l': 'lll', 'm': 'mmm', 'n': 'nnn', 'p': 'puh',
-      'r': 'rrr', 's': 'sss', 't': 'tuh', 'v': 'vvv',
-      'w': 'wuh', 'x': 'ks', 'y': 'yuh', 'z': 'zzz',
-
-      // Single letters - vowels (short sounds)
-      'a': 'ah', 'e': 'eh', 'i': 'ih',
-      'o': 'ah', 'u': 'uh',
-
-      // Consonant digraphs
-      'ch': 'chuh', 'sh': 'shh', 'th': 'thh',
-      'wh': 'wh', 'qu': 'kwuh', 'ck': 'kuh',
-      'ph': 'fff', 'ng': 'ng',
-
-      // Special consonants
-      'gn': 'nnn', 'kn': 'nnn', 'wr': 'rrr',
-      'ps': 'sss', 'rh': 'rrr', 'mn': 'nnn',
-      'gh': 'guh', 'gu': 'guh', 'gue': 'guh', 'que': 'kuh',
-
-      // Vowel teams - long vowels
-      'ai': 'ay', 'ay': 'ay', 'ee': 'eee',
-      'ea': 'eee', 'oa': 'oh', 'oe': 'oh',
-      'ue': 'ooo', 'ew': 'ooo', 'ow': 'oh',
-
-      // R-controlled vowels
-      'ar': 'are', 'or': 'or', 'er': 'er',
-      'ir': 'er', 'ur': 'er',
-      'ear': 'ear', 'ure': 'oor',
-
-      // Other vowel patterns
-      'oi': 'oy', 'oy': 'oy',
-      'au': 'aw', 'aw': 'aw',
-      'oo': 'ooo', 'ou': 'ow',
-      'ie': 'eye', 'igh': 'eye', 'ei': 'ay',
-      'eigh': 'ay', 'augh': 'aw',
-      'eu': 'yoo', 'tu': 'too', 'ey': 'ay',
-      'eau': 'oh', 'our': 'our',
-
-      // Units (red tiles) - blend sounds
-      'all': 'all', 'ang': 'ang', 'ing': 'ing',
-      'ong': 'ong', 'ung': 'ung', 'ank': 'ank',
-      'ink': 'ink', 'onk': 'onk', 'unk': 'unk',
-      'oll': 'ole', 'old': 'old', 'olt': 'olt',
-      'ost': 'ohst', 'ild': 'iled', 'ind': 'eyend',
-
-      // Endings (green tiles)
-      'ture': 'chur', 's': 'sss', 'es': 'ez', 'ed': 'ed',
-      'er': 'er', 'est': 'est', 'ist': 'ist', 'en': 'en',
-      'ish': 'ish', 'ity': 'ih tee', 'able': 'uh bull',
-      'tion': 'shun', 'sion': 'shun',
-      'ible': 'ih bull', 'ble': 'bull', 'cle': 'kull',
-      'dle': 'dull', 'fle': 'full', 'gle': 'gull',
-      'kle': 'kull', 'ple': 'pull', 'tle': 'tull', 'zle': 'zull',
-      'ary': 'air ee', 'ery': 'er ee', 'ory': 'or ee',
-
-      // Prefixes (orange tiles)
-      'dis': 'dis', 'in': 'in', 'un': 'un', 'non': 'non',
-      'mis': 'mis', 'sub': 'sub', 're': 'ree', 'pre': 'pree',
-      'inter': 'in ter', 'mid': 'mid', 'over': 'oh ver', 'up': 'up',
-      'ate': 'ate', 'ite': 'ite', 'ine': 'een',
-      'ice': 'ice', 'ace': 'ace', 'age': 'ij',
-
-      // Roots (purple tiles)
-      'astro': 'as tro', 'auto': 'aw toe', 'bio': 'bye oh',
-      'chron': 'kron', 'geo': 'jee oh', 'graph': 'graf',
-      'hydro': 'high dro', 'phon': 'fon', 'tele': 'tel eh',
-      'demo': 'dem oh', 'fac': 'fak', 'form': 'form',
-      'fort': 'fort', 'fract': 'frakt', 'ject': 'jekt',
-      'jud': 'jud', 'mal': 'mal', 'mater': 'may ter',
-      'mit': 'mit', 'mort': 'mort', 'multi': 'mul tee',
-      'pater': 'pay ter', 'port': 'port', 'rupt': 'rupt',
-      'scrib': 'skrib', 'script': 'skript', 'sect': 'sekt',
-      'sec': 'sek', 'sent': 'sent', 'spect': 'spekt',
-      'struct': 'strukt'
-    };
-
-    function playSound(text) {
-      if (!audioEnabled || !synth) return;
-
-      const lowerText = text.toLowerCase();
-      const phoneme = PHONEME_MAP[lowerText];
-
-      if (!phoneme) {
-        // If no exact match, try first letter
-        const firstLetter = lowerText.charAt(0);
-        if (PHONEME_MAP[firstLetter]) {
-          speakPhoneme(PHONEME_MAP[firstLetter]);
-        }
-        return;
-      }
-
-      speakPhoneme(phoneme);
-    }
-
-    // Initialize voices
-    let voicesLoaded = false;
-    let preferredVoice = null;
-
-    function loadVoices() {
-      const voices = synth.getVoices();
-      if (voices.length > 0) {
-        voicesLoaded = true;
-        // Prefer Google or Microsoft voices for better quality
-        preferredVoice = voices.find(v =>
-          v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft'))
-        ) || voices.find(v => v.lang.startsWith('en'));
-      }
-    }
-
-    // Load voices on initialization and when they change
-    if (synth) {
-      loadVoices();
-      if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = loadVoices;
-      }
-    }
-
-    function speakPhoneme(phoneme) {
-      if (!synth) return;
-
-      // Cancel any ongoing speech
-      synth.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(phoneme);
-      utterance.rate = 0.7; // Slower for clearer pronunciation
-      utterance.pitch = 1.0;
-      utterance.volume = 0.9;
-
-      // Use preferred voice if available
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
-      synth.speak(utterance);
-    }
-
-    function toggleAudio() {
-      audioEnabled = !audioEnabled;
-      const btn = document.getElementById('audioToggle');
-      if (audioEnabled) {
-        btn.textContent = '🔊 Sound';
-        btn.classList.remove('muted');
-      } else {
-        btn.textContent = '🔇 Muted';
-        btn.classList.add('muted');
-      }
-    }
 
     // ====== LEVEL DATA ======
     const B_LEVELS = {
@@ -569,8 +410,7 @@
         const dt=performance.now()-gesture.tStart;
         const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
         if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
-          // This was a tap - play sound
-          playSound(gesture.text);
+          // This was a tap - no action needed
           cleanup();
           return;
         }
@@ -728,7 +568,6 @@
 
     // ====== BOOT ======
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
-    document.getElementById('audioToggle').addEventListener('click', toggleAudio);
     document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
 
     // setup drawer tab listeners
