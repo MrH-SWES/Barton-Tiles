@@ -29,6 +29,7 @@
     #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
+    .btn.audio{background:#059669}.btn.audio.muted{background:#6b7280}
 
     /* permanent alphabet section */
     #alphabetSection{position:absolute;left:0;right:0;bottom:24vh;background:#f9fafb;padding:4px 6px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:3px}
@@ -89,6 +90,7 @@
           <option value="5">Book 5</option><option value="6">Book 6</option><option value="7">Book 7</option>
           <option value="8">Book 8</option><option value="9">Book 9</option><option value="10">Book 10</option>
         </select>
+        <button id="audioToggle" class="btn audio">🔊 Sound</button>
         <button id="resetButton" class="btn danger">Reset</button>
       </div>
     </div>
@@ -128,6 +130,94 @@
 
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
+
+    // ====== AUDIO ======
+    let audioEnabled = true;
+
+    // Map tile text to audio file names
+    const AUDIO_MAP = {
+      // Single letters - consonants
+      'b': 'b-bat.mp3', 'c': 'c-cut.mp3', 'd': 'd-dip.mp3', 'f': 'f-fun.mp3',
+      'g': 'g-get.mp3', 'h': 'h-hat.mp3', 'j': 'j-jog.mp3', 'k': 'k-kit.mp3',
+      'l': 'l-lip.mp3', 'm': 'm-mug.mp3', 'n': 'n-nap.mp3', 'p': 'p-pick.mp3',
+      'r': 'r-rid.mp3', 's': 's-sit-mess.mp3', 't': 't-tuck.mp3', 'v': 'v-van.mp3',
+      'w': 'w-will.mp3', 'x': 'x-mix-rocks.mp3', 'y': 'y-yes.mp3', 'z': 'z-zip-buzz.mp3',
+
+      // Single letters - vowels
+      'a': 'a-apple.mp3', 'e': 'e-elephant.mp3', 'i': 'i-igloo.mp3',
+      'o': 'o-octopus.mp3', 'u': 'u-up.mp3',
+
+      // Consonant digraphs
+      'ch': 'ch-chick.mp3', 'sh': 'sh-ship.mp3', 'th': 'th-thin.mp3',
+      'wh': 'hw-whip.mp3', 'qu': 'qu-quest.mp3', 'ck': 'k-kit.mp3',
+      'ph': 'f-fun.mp3', 'ng': 'ng-ring.mp3',
+
+      // Special consonants
+      'gn': 'n-gnome.mp3', 'kn': 'n-knife.mp3', 'wr': 'wr-wrist.mp3',
+      'ps': 's-sit-mess.mp3', 'rh': 'r-rid.mp3', 'mn': 'n-nap.mp3',
+      'gh': 'g-get.mp3', 'gu': 'g-get.mp3', 'gue': 'g-get.mp3', 'que': 'k-kit.mp3',
+
+      // Vowel teams - long vowels
+      'ai': 'a-cake.mp3', 'ay': 'a-cake.mp3', 'ee': 'e-team.mp3',
+      'ea': 'e-team.mp3', 'oa': 'o-rope.mp3', 'oe': 'o-rope.mp3',
+      'ue': 'u-lute-glue.mp3', 'ew': 'oo-boot-new.mp3', 'ow': 'o-rope.mp3',
+
+      // R-controlled vowels
+      'ar': 'ar-jar.mp3', 'or': 'or-fork.mp3', 'er': 'er-herd-bird-turn.mp3',
+      'ir': 'er-herd-bird-turn.mp3', 'ur': 'er-herd-bird-turn.mp3',
+      'ear': 'ear-hear.mp3', 'ure': 'ure-lure.mp3',
+
+      // Other vowel patterns
+      'oi': 'oi-soil-toy.mp3', 'oy': 'oi-soil-toy.mp3',
+      'au': 'aw-haul-hawk-ball.mp3', 'aw': 'aw-haul-hawk-ball.mp3',
+      'oo': 'oo-boot-new.mp3', 'ou': 'ou-how-out.mp3',
+      'ie': 'i-kite.mp3', 'igh': 'i-kite.mp3', 'ei': 'a-cake.mp3',
+      'eigh': 'a-cake.mp3', 'augh': 'aw-haul-hawk-ball.mp3',
+      'eu': 'u-lute-glue.mp3', 'tu': 'u-lute-glue.mp3', 'ey': 'a-cake.mp3',
+      'eau': 'o-rope.mp3', 'our': 'or-fork.mp3',
+
+      // Units (red tiles)
+      'all': 'aw-haul-hawk-ball.mp3', 'ang': 'ng-ring.mp3', 'ing': 'ng-ring.mp3',
+      'ong': 'ng-ring.mp3', 'ung': 'ng-ring.mp3', 'ank': 'ng-ring.mp3',
+      'ink': 'ng-ring.mp3', 'onk': 'ng-ring.mp3', 'unk': 'ng-ring.mp3',
+      'oll': 'o-rope.mp3', 'old': 'o-rope.mp3', 'olt': 'o-rope.mp3',
+      'ost': 'o-rope.mp3', 'ild': 'i-kite.mp3', 'ind': 'i-kite.mp3',
+
+      // Endings - default to schwa or silent
+      'ture': 'er-herd-bird-turn.mp3'
+    };
+
+    function playSound(text) {
+      if (!audioEnabled) return;
+
+      const audioFile = AUDIO_MAP[text.toLowerCase()];
+      if (!audioFile) {
+        // If no exact match, try first letter for compounds
+        const firstLetter = text.charAt(0).toLowerCase();
+        if (AUDIO_MAP[firstLetter]) {
+          const audio = new Audio(`audio/${AUDIO_MAP[firstLetter]}`);
+          audio.volume = 0.6;
+          audio.play().catch(err => console.log('Audio play failed:', err));
+        }
+        return;
+      }
+
+      const audio = new Audio(`audio/${audioFile}`);
+      audio.volume = 0.6;
+      audio.play().catch(err => console.log('Audio play failed:', err));
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const btn = document.getElementById('audioToggle');
+      if (audioEnabled) {
+        btn.textContent = '🔊 Sound';
+        btn.classList.remove('muted');
+      } else {
+        btn.textContent = '🔇 Muted';
+        btn.classList.add('muted');
+      }
+    }
 
     // ====== LEVEL DATA ======
     const B_LEVELS = {
@@ -409,7 +499,12 @@
       const onEnd=(ev)=>{
         const dt=performance.now()-gesture.tStart;
         const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
-        if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){ cleanup(); return; }
+        if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
+          // This was a tap - play sound
+          playSound(gesture.text);
+          cleanup();
+          return;
+        }
         handleEnd(ev); cleanup();
       };
       function cleanup(){ document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onEnd); document.removeEventListener('pointercancel',onEnd); gesture=null; }
@@ -564,6 +659,7 @@
 
     // ====== BOOT ======
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
+    document.getElementById('audioToggle').addEventListener('click', toggleAudio);
     document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
 
     // setup drawer tab listeners
