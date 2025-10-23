@@ -30,27 +30,37 @@
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px var(--shadow)}
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
-    /* bottom dock supports stacked, multi-open drawers; capped at 60vh */
-    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:60vh;pointer-events:none;z-index:20}
+    /* bottom dock: always-visible base + optional drawer above */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:260px;pointer-events:none;z-index:20}
 
-    /* two rows of tabs anchored to the very bottom */
-    .tabRows{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:40px 40px;gap:8px 10px;padding:10px 14px;pointer-events:auto}
-    .tab{background:var(--tab);border-radius:10px 10px 0 0;color:var(--tab-ink);display:flex;align-items:center;justify-content:center;font-weight:700;letter-spacing:.2px;box-shadow:0 -2px 6px rgba(0,0,0,.2),0 3px 8px var(--shadow);cursor:pointer;user-select:none}
-    .tab.dim{background:var(--tab-dim)}
-    .tab.disabled{opacity:.45;cursor:not-allowed}
+    /* always-visible base tiles (blue + yellow) */
+    #baseTiles{position:absolute;left:0;right:0;bottom:0;background:var(--tray);padding:8px 12px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3)}
+    .base-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
+    .base-row:last-child{margin-bottom:0}
 
-    /* drawer content panels are absolutely stacked above the tab rows */
-    .drawerContent{
-      position:absolute;left:14px;right:14px;
+    /* special drawer tabs above base */
+    .drawerTabs{position:absolute;left:12px;right:12px;bottom:140px;display:flex;gap:8px;justify-content:center;pointer-events:auto}
+    .drawer-tab{background:#374151;color:#fff;border-radius:8px 8px 0 0;padding:8px 16px;cursor:pointer;user-select:none;font-weight:700;font-size:14px;box-shadow:0 -2px 6px rgba(0,0,0,.25);transition:background .2s}
+    .drawer-tab:hover{background:#4b5563}
+    .drawer-tab.active{background:#1f2937}
+    .drawer-tab.disabled{opacity:.4;cursor:not-allowed}
+    .drawer-tab.red-text{color:#f87171}
+    .drawer-tab.green-text{color:#4ade80}
+    .drawer-tab.orange-text{color:#fb923c}
+    .drawer-tab.purple-text{color:#a78bfa}
+
+    /* special drawer content */
+    .specialDrawer{
+      position:absolute;left:12px;right:12px;bottom:180px;
       background:var(--tray);border-radius:12px 12px 0 0;
-      padding:10px 12px;box-shadow:0 -6px 12px rgba(0,0,0,.35);
-      height:0;overflow:hidden;transform:translateY(100%);opacity:0;pointer-events:none;
-      transition:transform .22s ease,height .22s ease,opacity .22s ease;
+      padding:12px;box-shadow:0 -6px 12px rgba(0,0,0,.35);
+      height:0;overflow:hidden;opacity:0;pointer-events:none;
+      transition:height .25s ease,opacity .25s ease;
     }
-    .drawerContent.open{opacity:1;pointer-events:auto;transform:translateY(0)}
+    .specialDrawer.open{opacity:1;pointer-events:auto;height:120px}
 
-    .tile-row{display:flex;flex-wrap:nowrap;gap:8px;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding-bottom:6px}
-    .legend{color:#e5e7eb;font-size:12px;margin:0 0 6px;text-align:left}
+    .tile-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:100%}
+    .legend{color:#e5e7eb;font-size:13px;margin:0 0 8px;text-align:left;font-weight:700}
   </style>
 </head>
 <body>
