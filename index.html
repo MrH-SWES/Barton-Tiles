@@ -129,6 +129,120 @@
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
 
+    // ====== AUDIO MAPPING ======
+    // Maps tile text to audio file names (without .mp3 extension)
+    const AUDIO_MAP = {
+      // Single consonants
+      'b': 'b-bat',
+      'c': 'c-cut',
+      'd': 'd-dip',
+      'f': 'f-fun',
+      'g': 'g-get',
+      'h': 'h-hat',
+      'j': 'j-jug',
+      'k': 'k-kit',
+      'l': 'l-lip',
+      'm': 'm-map',
+      'n': 'n-net',
+      'p': 'p-pig',
+      'qu': 'qu-quit',
+      'r': 'r-rat',
+      's': 's-sit',
+      't': 't-tip',
+      'v': 'v-van',
+      'w': 'w-wig',
+      'x': 'x-fox',
+      'y': 'y-yak',
+      'z': 'z-zip',
+
+      // Consonant digraphs
+      'ch': 'ch-chick',
+      'ck': 'ck-duck',
+      'sh': 'sh-ship',
+      'th': 'th-thick',
+      'wh': 'wh-whip',
+      'ph': 'ph-phone',
+
+      // Single vowels
+      'a': 'a-apple',
+      'e': 'e-elephant',
+      'i': 'i-igloo',
+      'o': 'o-octopus',
+      'u': 'u-umbrella',
+
+      // Vowel teams (long vowels)
+      'ai': 'a-cake',
+      'ay': 'a-cake',
+      'ee': 'e-team',
+      'ea': 'e-team',
+      'oa': 'o-boat',
+      'oe': 'o-boat',
+      'ue': 'u-cube',
+      'ew': 'u-cube',
+      'ow': 'o-boat',
+      'y': 'e-team', // y as long e
+      'ie': 'e-team',
+      'igh': 'i-kite',
+
+      // R-controlled vowels
+      'ar': 'ar-jar',
+      'or': 'or-fork',
+      'er': 'er-herd-bird-turn',
+      'ir': 'er-herd-bird-turn',
+      'ur': 'er-herd-bird-turn',
+      'ear': 'ear-hear',
+
+      // Other vowel patterns
+      'air': 'air-pair-share',
+      'oi': 'oi-oil-boy',
+      'oy': 'oi-oil-boy',
+      'ey': 'a-cake',
+      'au': 'aw-haul-hawk-ball',
+      'aw': 'aw-haul-hawk-ball',
+      'oo': 'oo-moon',
+      'ou': 'ou-cloud',
+      'augh': 'aw-haul-hawk-ball',
+      'eigh': 'a-cake',
+      'ei': 'a-cake',
+      'eu': 'u-cube',
+      'tu': 'u-cube',
+      'eau': 'o-boat',
+      'our': 'or-fork',
+
+      // Silent letters
+      'ps': 'ps-psychology',
+      'rh': 'rh-rhino',
+      'mn': 'mn-autumn',
+      'wr': 'wr-write',
+      'kn': 'kn-knock',
+      'gh': 'gh-ghost',
+      'gn': 'gn-gnome',
+      'que': 'que-antique',
+      'gu': 'gu-guitar',
+      'gue': 'gue-league',
+
+      // Units (red tiles) - using generic phonics sounds
+      'all': 'all-ball',
+      'ang': 'ang-bang',
+      'ing': 'ing-sing',
+      'ong': 'ong-song',
+      'ung': 'ung-lung',
+      'ank': 'ank-tank',
+      'ink': 'ink-pink',
+      'onk': 'onk-honk',
+      'unk': 'unk-trunk',
+      'oll': 'oll-doll',
+      'old': 'old-cold',
+      'olt': 'olt-bolt',
+      'ost': 'ost-most',
+      'ild': 'ild-wild',
+      'ind': 'ind-kind',
+      'ture': 'ture-picture'
+    };
+
+    // Track pronunciations for syllables from whole words
+    const syllablePronunciations = new Map();
+
     // ====== LEVEL DATA ======
     const B_LEVELS = {
       2: { blue:["b","c","d","f","g","h","j","k","l","m","n","p","qu","r","s","t","v","w","x","y","z","ch","ck","sh","th","wh"], yellow:["a","e","i","o","u"] },
@@ -162,6 +276,133 @@
     function getUniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=> (a.length===b.length ? a.localeCompare(b) : a.length-b.length)); }
     function sameRowY(y1,y2){ return Math.abs(y1-y2) < TILE_SIZE/2; }
     function areFlush(a,b,tol=2){ return Math.abs(a.x + TILE_SIZE - b.x) <= tol; }
+
+    // ====== AUDIO PLAYBACK ======
+    function playTileSound(text){
+      // Check if audio file exists for this tile
+      const audioFileName = AUDIO_MAP[text.toLowerCase()];
+      if(audioFileName){
+        const audio = new Audio(`audio/${audioFileName}.mp3`);
+        audio.play().catch(err => {
+          console.warn(`Could not play audio for "${text}":`, err);
+        });
+      } else {
+        // Fallback to TTS for tiles without audio files (like affixes, roots)
+        speakText(text);
+      }
+    }
+
+    function playGroupSound(group){
+      // Get the text from the group of tiles
+      const text = group.map(t => t.text).join('');
+
+      // Check if we have a stored pronunciation for this syllable
+      const storedPronunciation = syllablePronunciations.get(text);
+      if(storedPronunciation){
+        speakText(storedPronunciation);
+      } else {
+        // Use default pronunciation
+        speakText(text);
+      }
+    }
+
+    function speakText(text){
+      // Use Web Speech API for TTS
+      if('speechSynthesis' in window){
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.8; // Slightly slower for learning
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        window.speechSynthesis.speak(utterance);
+      } else {
+        console.warn('Speech synthesis not supported in this browser');
+      }
+    }
+
+    function handleTileClick(text, source){
+      // Handle clicking on individual tiles
+      if(source === 'tray' || source === 'alphabet'){
+        // Clicking on tray or alphabet tiles plays their sound
+        playTileSound(text);
+      } else {
+        // Clicking on word pane tiles
+        const tile = tiles.find(t => t.id === source);
+        if(tile){
+          // Check if this tile is part of a group
+          const group = getGroupChain(tile);
+          if(group.length > 1){
+            // Play the group as a whole
+            playGroupSound(group);
+          } else {
+            // Play individual tile sound
+            playTileSound(text);
+          }
+        }
+      }
+    }
+
+    // ====== SYLLABLE PRONUNCIATION TRACKING ======
+    // This feature allows syllables to be pronounced correctly when broken from words
+    // Example: "reading" broken into "read-ing" should pronounce "read" as /red/ not /reed/
+
+    function detectWordFormation(){
+      // Get all groups on the pane
+      const allRows = new Map(); // rowY -> tiles in that row
+      tiles.forEach(tile => {
+        const rowY = Math.round(tile.y / TILE_SIZE) * TILE_SIZE;
+        if(!allRows.has(rowY)){
+          allRows.set(rowY, []);
+        }
+        allRows.get(rowY).push(tile);
+      });
+
+      // For each row, find groups and check if they form known words
+      allRows.forEach(rowTiles => {
+        rowTiles.sort((a, b) => a.x - b.x);
+        let i = 0;
+        while(i < rowTiles.length){
+          let j = i + 1;
+          while(j < rowTiles.length && areFlush(rowTiles[j-1], rowTiles[j])){
+            j++;
+          }
+          const group = rowTiles.slice(i, j);
+          if(group.length > 1){
+            checkAndStorePronunciation(group);
+          }
+          i = j;
+        }
+      });
+    }
+
+    function checkAndStorePronunciation(group){
+      const word = group.map(t => t.text).join('');
+
+      // Store pronunciation hints for common syllable patterns
+      // This can be extended with a comprehensive dictionary
+      const knownWords = {
+        'reading': { syllables: ['read', 'ing'], pronunciations: ['red', 'ing'] },
+        'leading': { syllables: ['lead', 'ing'], pronunciations: ['leed', 'ing'] },
+        'presentation': { syllables: ['pre', 'sen', 'ta', 'tion'], pronunciations: ['pree', 'zen', 'tay', 'shun'] },
+        // Add more words as needed
+      };
+
+      if(knownWords[word.toLowerCase()]){
+        const wordData = knownWords[word.toLowerCase()];
+        wordData.syllables.forEach((syllable, idx) => {
+          syllablePronunciations.set(syllable, wordData.pronunciations[idx]);
+        });
+      }
+    }
+
+    // Call this periodically to update syllable pronunciations
+    // This could be triggered when tiles are dropped or repositioned
+    function updateSyllablePronunciations(){
+      detectWordFormation();
+    }
 
     function recomputeGroupsAround(rowY){
       const row=tiles.filter(t=>sameRowY(t.y,rowY)).sort((a,b)=>a.x-b.x);
@@ -409,7 +650,12 @@
       const onEnd=(ev)=>{
         const dt=performance.now()-gesture.tStart;
         const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
-        if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){ cleanup(); return; }
+        if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
+          // This is a tap/click - play sound
+          handleTileClick(gesture.text, gesture.source);
+          cleanup();
+          return;
+        }
         handleEnd(ev); cleanup();
       };
       function cleanup(){ document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onEnd); document.removeEventListener('pointercancel',onEnd); gesture=null; }
@@ -511,7 +757,14 @@
       }
       finish();
 
-      function finish(){ draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); }
+      function finish(){
+        draggedTile=null;
+        draggedGroup=[];
+        dragStartRowY=null;
+        clearDragVisual();
+        renderWordPane();
+        updateSyllablePronunciations(); // Update pronunciation tracking after tiles are moved
+      }
     }
 
     // ====== DRAG VISUALS ======
