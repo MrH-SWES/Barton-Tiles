@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Math Manipulatives</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --bg:#e5e7eb; --ink:#111827;
+      --tray:#3f3f46; --tab:#6b7280; --tab-dim:#9ca3af; --tab-ink:#fff;
+      --shadow:rgba(0,0,0,.25);
+    }
+    body{font-family:'Lexend',sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;touch-action:manipulation}
+
+    #app{position:relative;height:100%;width:100%}
+
+    /* workspace leaves room for tile dock (max 24vh) and reference area */
+    #workspace{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
+    .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
+
+    /* Fraction reference area - guide lines for alignment */
+    #fractionReference{position:absolute;left:20px;top:20px;display:none;flex-direction:column;gap:2px;padding:10px;background:rgba(255,255,255,0.3);border-radius:8px;border:2px dashed #9ca3af;pointer-events:none}
+    #fractionReference.visible{display:flex}
+    .fraction-guide-line{height:52px;border-bottom:2px dashed #6b7280;position:relative;min-width:520px}
+    .fraction-guide-label{position:absolute;right:-50px;top:50%;transform:translateY(-50%);color:#6b7280;font-size:14px;font-weight:600}
+
+    /* Base manipulative styles */
+    .manipulative{border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
+    .manipulative:active{cursor:grabbing}
+
+    /* Place value card styles - 3" high (156px), proportional width (120px) */
+    .place-value-card{width:120px;height:156px;font-size:42px}
+    .place-value-card.ones{background:#60a5fa;z-index:4}     /* blue - highest */
+    .place-value-card.tens{background:#4ade80;z-index:3}     /* green */
+    .place-value-card.hundreds{background:#f87171;z-index:2} /* red */
+    .place-value-card.thousands{background:#fb923c;z-index:1}/* orange - lowest */
+    .workspace-item.place-value-card.ones{z-index:14}
+    .workspace-item.place-value-card.tens{z-index:13}
+    .workspace-item.place-value-card.hundreds{z-index:12}
+    .workspace-item.place-value-card.thousands{z-index:11}
+
+    /* Fraction bar styles - 1" tall (52px), varying widths */
+    .fraction-bar{height:52px;font-size:20px}
+    .fraction-bar.whole{width:520px;background:#8b5cf6}      /* purple - 1 whole */
+    .fraction-bar.half{width:260px;background:#ec4899}       /* pink - 1/2 */
+    .fraction-bar.third{width:173px;background:#f59e0b}      /* amber - 1/3 */
+    .fraction-bar.fourth{width:130px;background:#10b981}     /* emerald - 1/4 */
+    .fraction-bar.fifth{width:104px;background:#3b82f6}      /* blue - 1/5 */
+    .fraction-bar.sixth{width:87px;background:#ef4444}       /* red - 1/6 */
+    .fraction-bar.eighth{width:65px;background:#14b8a6}      /* teal - 1/8 */
+    .fraction-bar.tenth{width:52px;background:#f97316}       /* orange - 1/10 */
+    .fraction-bar.twelfth{width:43px;background:#a855f7}     /* purple - 1/12 */
+
+    .manipulative.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
+    .workspace-item{position:absolute}
+
+    #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
+    .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
+    .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
+
+    /* bottom dock: scrollable tile tray with tabs */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:24vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
+
+    /* drawer tabs */
+    #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
+    .drawer-tab{padding:6px 12px;background:var(--tab);border:none;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
+    .drawer-tab:hover{background:#52525b}
+    .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
+    .drawer-tab.blue-text{color:#60a5fa}
+    .drawer-tab.green-text{color:#4ade80}
+    .drawer-tab.red-text{color:#f87171}
+    .drawer-tab.orange-text{color:#fb923c}
+    .drawer-tab.purple-text{color:#a78bfa}
+
+    /* manipulatives area */
+    #manipulativesTray{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center}
+    .tray-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;width:100%}
+
+    /* Chromebook optimizations */
+    @media screen and (max-width: 1440px) {
+      .hint{font-size:16px}
+      #controls{top:6px;left:6px}
+    }
+
+    @media screen and (max-width: 1366px) {
+      #bottomDock{height:22vh}
+      #workspace{inset:0 0 22vh 0}
+      .drawer-tab{padding:5px 10px;font-size:11px}
+      #manipulativesTray{padding:4px 5px}
+      .tray-row{gap:2px}
+      .hint{font-size:15px}
+    }
+
+    @media screen and (max-height: 800px) {
+      #bottomDock{height:20vh}
+      #workspace{inset:0 0 20vh 0}
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="workspace">
+      <div class="hint">Drag place value cards and fraction bars here.</div>
+      <div id="controls">
+        <button id="resetButton" class="btn danger">Reset</button>
+        <button id="toggleGuideButton" class="btn secondary" style="display:none">Toggle Guide</button>
+      </div>
+      <!-- Fraction alignment reference -->
+      <div id="fractionReference">
+        <div class="fraction-guide-line"><span class="fraction-guide-label">Guide</span></div>
+        <div class="fraction-guide-line"></div>
+        <div class="fraction-guide-line"></div>
+      </div>
+    </div>
+
+    <!-- bottom dock with drawer tabs -->
+    <div id="bottomDock">
+      <!-- drawer tabs -->
+      <div id="drawerTabs">
+        <button class="drawer-tab active blue-text" data-drawer="ones">Ones</button>
+        <button class="drawer-tab green-text" data-drawer="tens">Tens</button>
+        <button class="drawer-tab red-text" data-drawer="hundreds">Hundreds</button>
+        <button class="drawer-tab orange-text" data-drawer="thousands">Thousands</button>
+        <button class="drawer-tab purple-text" data-drawer="fractions">Fractions</button>
+      </div>
+      <!-- manipulatives area -->
+      <div id="manipulativesTray">
+        <div class="tray-row" id="trayRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ====== CONFIG ======
+    const PLACE_VALUE_WIDTH = 120;
+    const PLACE_VALUE_HEIGHT = 156;
+    const FRACTION_HEIGHT = 52;
+    const FRACTION_WIDTHS = {
+      'whole': 520,
+      'half': 260,
+      'third': 173,
+      'fourth': 130,
+      'fifth': 104,
+      'sixth': 87,
+      'eighth': 65,
+      'tenth': 52,
+      'twelfth': 43
+    };
+
+    // touch-friendly thresholds
+    const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
+    const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
+
+    function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
+    const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
+
+    // ====== DATA ======
+    const MATH_DATA = {
+      ones: [
+        { text: '1', type: 'place-value-card', category: 'ones' },
+        { text: '2', type: 'place-value-card', category: 'ones' },
+        { text: '3', type: 'place-value-card', category: 'ones' },
+        { text: '4', type: 'place-value-card', category: 'ones' },
+        { text: '5', type: 'place-value-card', category: 'ones' },
+        { text: '6', type: 'place-value-card', category: 'ones' },
+        { text: '7', type: 'place-value-card', category: 'ones' },
+        { text: '8', type: 'place-value-card', category: 'ones' },
+        { text: '9', type: 'place-value-card', category: 'ones' }
+      ],
+      tens: [
+        { text: '10', type: 'place-value-card', category: 'tens' },
+        { text: '20', type: 'place-value-card', category: 'tens' },
+        { text: '30', type: 'place-value-card', category: 'tens' },
+        { text: '40', type: 'place-value-card', category: 'tens' },
+        { text: '50', type: 'place-value-card', category: 'tens' },
+        { text: '60', type: 'place-value-card', category: 'tens' },
+        { text: '70', type: 'place-value-card', category: 'tens' },
+        { text: '80', type: 'place-value-card', category: 'tens' },
+        { text: '90', type: 'place-value-card', category: 'tens' }
+      ],
+      hundreds: [
+        { text: '100', type: 'place-value-card', category: 'hundreds' },
+        { text: '200', type: 'place-value-card', category: 'hundreds' },
+        { text: '300', type: 'place-value-card', category: 'hundreds' },
+        { text: '400', type: 'place-value-card', category: 'hundreds' },
+        { text: '500', type: 'place-value-card', category: 'hundreds' },
+        { text: '600', type: 'place-value-card', category: 'hundreds' },
+        { text: '700', type: 'place-value-card', category: 'hundreds' },
+        { text: '800', type: 'place-value-card', category: 'hundreds' },
+        { text: '900', type: 'place-value-card', category: 'hundreds' }
+      ],
+      thousands: [
+        { text: '1000', type: 'place-value-card', category: 'thousands' },
+        { text: '2000', type: 'place-value-card', category: 'thousands' },
+        { text: '3000', type: 'place-value-card', category: 'thousands' },
+        { text: '4000', type: 'place-value-card', category: 'thousands' },
+        { text: '5000', type: 'place-value-card', category: 'thousands' },
+        { text: '6000', type: 'place-value-card', category: 'thousands' },
+        { text: '7000', type: 'place-value-card', category: 'thousands' },
+        { text: '8000', type: 'place-value-card', category: 'thousands' },
+        { text: '9000', type: 'place-value-card', category: 'thousands' }
+      ],
+      fractions: [
+        { text: '1', type: 'fraction-bar', category: 'whole' },
+        { text: '1/2', type: 'fraction-bar', category: 'half' },
+        { text: '1/2', type: 'fraction-bar', category: 'half' },
+        { text: '1/3', type: 'fraction-bar', category: 'third' },
+        { text: '1/3', type: 'fraction-bar', category: 'third' },
+        { text: '1/3', type: 'fraction-bar', category: 'third' },
+        { text: '1/4', type: 'fraction-bar', category: 'fourth' },
+        { text: '1/4', type: 'fraction-bar', category: 'fourth' },
+        { text: '1/4', type: 'fraction-bar', category: 'fourth' },
+        { text: '1/4', type: 'fraction-bar', category: 'fourth' },
+        { text: '1/5', type: 'fraction-bar', category: 'fifth' },
+        { text: '1/5', type: 'fraction-bar', category: 'fifth' },
+        { text: '1/5', type: 'fraction-bar', category: 'fifth' },
+        { text: '1/5', type: 'fraction-bar', category: 'fifth' },
+        { text: '1/5', type: 'fraction-bar', category: 'fifth' },
+        { text: '1/6', type: 'fraction-bar', category: 'sixth' },
+        { text: '1/6', type: 'fraction-bar', category: 'sixth' },
+        { text: '1/6', type: 'fraction-bar', category: 'sixth' },
+        { text: '1/6', type: 'fraction-bar', category: 'sixth' },
+        { text: '1/6', type: 'fraction-bar', category: 'sixth' },
+        { text: '1/6', type: 'fraction-bar', category: 'sixth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/8', type: 'fraction-bar', category: 'eighth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/10', type: 'fraction-bar', category: 'tenth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' },
+        { text: '1/12', type: 'fraction-bar', category: 'twelfth' }
+      ]
+    };
+
+    // ====== STATE ======
+    let items = []; // items on the workspace
+    let activeDrawer = 'ones'; // current drawer tab
+
+    // drag state
+    let draggedItem = null, draggedGroup = [], dragOffset = {x:0,y:0}, gesture = null, dragStartPos = null;
+
+    // ====== UTIL ======
+    function getItemDimensions(item) {
+      if (item.type === 'place-value-card') {
+        return { width: PLACE_VALUE_WIDTH, height: PLACE_VALUE_HEIGHT };
+      } else if (item.type === 'fraction-bar') {
+        return { width: FRACTION_WIDTHS[item.category], height: FRACTION_HEIGHT };
+      }
+      return { width: 52, height: 52 };
+    }
+
+    function sameRowY(y1, y2, height) {
+      return Math.abs(y1 - y2) < height / 2;
+    }
+
+    function areFlush(a, b, tol = 2) {
+      const aDim = getItemDimensions(a);
+      return Math.abs(a.x + aDim.width - b.x) <= tol;
+    }
+
+    // ====== DOM BUILDERS ======
+    function createManipulative(itemData, source) {
+      const el = document.createElement('div');
+      el.className = `manipulative ${itemData.type} ${itemData.category}`;
+      el.textContent = itemData.text;
+      el.dataset.text = itemData.text;
+      el.dataset.type = itemData.type;
+      el.dataset.category = itemData.category;
+      el.dataset.source = source;
+      el.addEventListener('pointerdown', (e) => onPointerStart(e, itemData, source));
+      return el;
+    }
+
+    function renderTray() {
+      renderActiveDrawer();
+    }
+
+    function renderActiveDrawer() {
+      const trayRow = document.getElementById('trayRow');
+      trayRow.innerHTML = '';
+
+      let itemsToRender = MATH_DATA[activeDrawer] || [];
+
+      // render items for active drawer
+      itemsToRender.forEach(itemData => {
+        trayRow.appendChild(createManipulative(itemData, 'tray'));
+      });
+    }
+
+    function renderWorkspace() {
+      const workspace = document.getElementById('workspace');
+      const hint = workspace.querySelector('.hint');
+      workspace.querySelectorAll('.workspace-item').forEach(el => el.remove());
+      hint.style.display = items.length > 0 ? 'none' : 'block';
+
+      items.forEach(item => {
+        if (draggedGroup.find(i => i.id === item.id)) return;
+        const el = document.createElement('div');
+        el.className = `manipulative ${item.type} ${item.category} workspace-item`;
+        el.textContent = item.text;
+        el.style.left = item.x + 'px';
+        el.style.top = item.y + 'px';
+        el.dataset.id = item.id;
+        el.addEventListener('pointerdown', (e) => onPointerStart(e, item, item.id));
+        workspace.appendChild(el);
+      });
+    }
+
+    // ====== SNAP (nearby detection) ======
+    function findGuideSnap(dropY, itemType) {
+      // Only snap fraction bars to guides
+      if (itemType !== 'fraction-bar') return null;
+
+      const fractionRef = document.getElementById('fractionReference');
+      if (!fractionRef.classList.contains('visible')) return null;
+
+      const refRect = fractionRef.getBoundingClientRect();
+      const workspace = document.getElementById('workspace');
+      const workspaceRect = workspace.getBoundingClientRect();
+
+      // Convert guide positions to workspace coordinates
+      const guideLines = fractionRef.querySelectorAll('.fraction-guide-line');
+      const GUIDE_SNAP_DISTANCE = 40;
+
+      for (let i = 0; i < guideLines.length; i++) {
+        const lineRect = guideLines[i].getBoundingClientRect();
+        const guideY = lineRect.top - workspaceRect.top;
+        const dist = Math.abs(dropY - guideY);
+
+        if (dist < GUIDE_SNAP_DISTANCE) {
+          return { snapY: guideY, dist: dist };
+        }
+      }
+
+      return null;
+    }
+
+    function findNearbyItems(dropX, dropY, dropWidth, dropHeight, excludeId, itemType) {
+      const dragLeft = dropX, dragRight = dropX + dropWidth, dragTop = dropY, dragBottom = dropY + dropHeight;
+      const candidates = [];
+
+      for (const item of items) {
+        if (item.id === excludeId) continue;
+        const itemDim = getItemDimensions(item);
+        const nbrLeft = item.x, nbrRight = item.x + itemDim.width, nbrTop = item.y, nbrBottom = item.y + itemDim.height;
+
+        // Check vertical overlap first
+        const overlapY = Math.min(dragBottom, nbrBottom) - Math.max(dragTop, nbrTop);
+        if (overlapY <= 0) continue;
+
+        // For place value cards, support overlapping placement
+        if (itemType === 'place-value-card' && item.type === 'place-value-card') {
+          const OVERLAP_DISTANCE = 80; // Larger detection range for overlapping
+          const centerDist = Math.abs((dropX + dropWidth/2) - (item.x + itemDim.width/2));
+
+          if (centerDist < OVERLAP_DISTANCE) {
+            // Snap to overlapping position - offset by 30px to show both numbers
+            const snapX = item.x + 30;
+            const dist = Math.abs(dropX - snapX);
+            candidates.push({ item, edge: 'overlap', snapX: snapX, snapY: item.y, dist: dist });
+          }
+        }
+
+        // Check horizontal proximity for snapping (for side-by-side placement)
+        const distToRight = Math.abs(dragLeft - nbrRight);
+        const distToLeft = Math.abs(dragRight - nbrLeft);
+
+        if (distToRight < SNAP_DISTANCE) {
+          candidates.push({ item, edge: 'right', snapX: nbrRight, snapY: item.y, dist: distToRight });
+        }
+        if (distToLeft < SNAP_DISTANCE) {
+          candidates.push({ item, edge: 'left', snapX: nbrLeft - dropWidth, snapY: item.y, dist: distToLeft });
+        }
+      }
+
+      // Sort by distance
+      candidates.sort((a, b) => a.dist - b.dist);
+      return candidates;
+    }
+
+    // ====== POINTERS / DRAG ======
+    function onPointerStart(e, itemData, source) {
+      if (e.isPrimary === false) return;
+      e.preventDefault(); e.stopPropagation();
+      if (e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { }
+      }
+      const targetRect = e.currentTarget.getBoundingClientRect();
+      const startX = e.clientX, startY = e.clientY, tStart = performance.now();
+
+      gesture = { startX, startY, tStart, moved: false, lastX: startX, lastY: startY, source, itemData, pointerType: e.pointerType };
+
+      const onMove = (ev) => {
+        const dx = ev.clientX - gesture.startX, dy = ev.clientY - gesture.startY;
+        gesture.lastX = ev.clientX; gesture.lastY = ev.clientY;
+        if (!gesture.moved && (Math.abs(dx) > dragThresholdFor(ev) || Math.abs(dy) > dragThresholdFor(ev))) {
+          gesture.moved = true; beginDrag(gesture, targetRect, dx, dy);
+        }
+        if (gesture.moved) handleMove(ev);
+      };
+
+      const onEnd = (ev) => {
+        const dt = performance.now() - gesture.tStart;
+        const totalMove = Math.hypot(ev.clientX - gesture.startX, ev.clientY - gesture.startY);
+        if (!gesture.moved && dt <= TAP_MAX_TIME_MS && totalMove <= TAP_MAX_MOVE_PX) {
+          // This was a tap - no action needed
+          cleanup();
+          return;
+        }
+        handleEnd(ev); cleanup();
+      };
+
+      function cleanup() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onEnd);
+        document.removeEventListener('pointercancel', onEnd);
+        gesture = null;
+      }
+
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onEnd, { passive: false });
+      document.addEventListener('pointercancel', onEnd, { passive: false });
+    }
+
+    function beginDrag(g, targetRect, dx = 0, dy = 0) {
+      const startX = g.startX, startY = g.startY, source = g.source;
+
+      if (source === 'tray') {
+        draggedItem = { ...g.itemData, x: startX, y: startY, sourceType: 'tray', startX, startY };
+        draggedGroup = []; dragStartPos = null;
+      } else {
+        const workspaceItem = items.find(i => i.id === source);
+        if (!workspaceItem) return;
+        draggedGroup = [workspaceItem];
+        draggedItem = { ...workspaceItem, x: startX, y: startY, sourceType: 'workspace', startX, startY };
+        dragStartPos = { x: workspaceItem.x, y: workspaceItem.y };
+      }
+      dragOffset = { x: startX - targetRect.left, y: startY - targetRect.top };
+      updateDragVisual();
+    }
+
+    function handleMove(e) {
+      if (!draggedItem) return;
+      e.preventDefault();
+      draggedItem.x = e.clientX; draggedItem.y = e.clientY;
+      updateDragVisual();
+    }
+
+    function handleEnd(e) {
+      if (!draggedItem) return;
+      e.preventDefault();
+
+      const workspace = document.getElementById('workspace');
+      const workspaceRect = workspace.getBoundingClientRect();
+
+      const inside = e.clientX >= workspaceRect.left && e.clientX <= workspaceRect.right &&
+                     e.clientY >= workspaceRect.top && e.clientY <= workspaceRect.bottom;
+
+      if (inside) {
+        let dropX = e.clientX - workspaceRect.left - dragOffset.x;
+        let dropY = e.clientY - workspaceRect.top - dragOffset.y;
+
+        const itemDim = getItemDimensions(draggedItem);
+
+        if (draggedItem.sourceType === 'tray') {
+          // Adding new item from tray
+          let finalX = dropX, finalY = dropY;
+
+          // Check for guide snap first (for fraction bars)
+          const guideSnap = findGuideSnap(dropY, draggedItem.type);
+          if (guideSnap) {
+            finalY = guideSnap.snapY;
+          } else {
+            // Check for nearby items
+            const nearby = findNearbyItems(dropX, dropY, itemDim.width, itemDim.height, null, draggedItem.type);
+            if (nearby.length > 0) {
+              const c = nearby[0];
+              finalX = c.snapX;
+              finalY = c.snapY;
+            }
+          }
+
+          const newItem = {
+            id: Date.now() + Math.random(),
+            text: draggedItem.text,
+            type: draggedItem.type,
+            category: draggedItem.category,
+            x: finalX,
+            y: finalY
+          };
+          items.push(newItem);
+        } else {
+          // Moving existing item
+          if (draggedGroup.length > 0) {
+            const main = draggedGroup[0];
+            let snapAdj = { dx: 0, dy: 0 };
+
+            // Check for guide snap first (for fraction bars)
+            const guideSnap = findGuideSnap(dropY, draggedItem.type);
+            if (guideSnap) {
+              snapAdj.dy = guideSnap.snapY - dropY;
+            } else {
+              // Check for nearby items
+              const nearby = findNearbyItems(dropX, dropY, itemDim.width, itemDim.height, draggedItem.id, draggedItem.type);
+              if (nearby.length > 0) {
+                const c = nearby[0];
+                snapAdj.dx = c.snapX - dropX;
+                snapAdj.dy = c.snapY - dropY;
+              }
+            }
+
+            items = items.map(i => {
+              if (i.id === main.id) {
+                return { ...i, x: dropX + snapAdj.dx, y: dropY + snapAdj.dy };
+              }
+              return i;
+            });
+          }
+        }
+      } else if (draggedItem.sourceType === 'workspace') {
+        // Dragged outside - remove item
+        if (draggedGroup.length > 0) {
+          const ids = new Set(draggedGroup.map(i => i.id));
+          items = items.filter(i => !ids.has(i.id));
+        }
+      }
+      finish();
+
+      function finish() {
+        draggedItem = null;
+        draggedGroup = [];
+        dragStartPos = null;
+        clearDragVisual();
+        renderWorkspace();
+      }
+    }
+
+    // ====== DRAG VISUALS ======
+    function updateDragVisual() {
+      clearDragVisual();
+      if (!draggedItem) return;
+      const workspaceRect = document.getElementById('workspace').getBoundingClientRect();
+
+      const g = document.createElement('div');
+      g.className = `manipulative ${draggedItem.type} ${draggedItem.category} dragging`;
+      g.textContent = draggedItem.text;
+      const gx = draggedItem.x - dragOffset.x, gy = draggedItem.y - dragOffset.y;
+      g.style.transform = `translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+      g.dataset.dragging = 'true';
+      document.body.appendChild(g);
+    }
+
+    function clearDragVisual() {
+      document.querySelectorAll('[data-dragging="true"]').forEach(el => el.remove());
+    }
+
+    // ====== DRAWER TAB SWITCHING ======
+    function switchDrawer(drawerName) {
+      activeDrawer = drawerName;
+
+      // update tab active states
+      document.querySelectorAll('.drawer-tab').forEach(tab => {
+        if (tab.dataset.drawer === drawerName) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+
+      // Show/hide fraction guide based on active drawer
+      const guideButton = document.getElementById('toggleGuideButton');
+      const fractionRef = document.getElementById('fractionReference');
+
+      if (drawerName === 'fractions') {
+        guideButton.style.display = 'block';
+        // Show guide by default when switching to fractions
+        if (!fractionRef.classList.contains('visible')) {
+          fractionRef.classList.add('visible');
+        }
+      } else {
+        guideButton.style.display = 'none';
+        fractionRef.classList.remove('visible');
+      }
+
+      // render the new drawer
+      renderActiveDrawer();
+    }
+
+    // ====== BOOT ======
+    document.getElementById('resetButton').addEventListener('click', () => {
+      items = [];
+      draggedItem = null;
+      draggedGroup = [];
+      dragStartPos = null;
+      clearDragVisual();
+      renderWorkspace();
+    });
+
+    document.getElementById('toggleGuideButton').addEventListener('click', () => {
+      const fractionRef = document.getElementById('fractionReference');
+      fractionRef.classList.toggle('visible');
+    });
+
+    // setup drawer tab listeners
+    document.querySelectorAll('.drawer-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchDrawer(tab.dataset.drawer);
+      });
+    });
+
+    renderTray();
+    renderWorkspace();
+  </script>
+</body>
+</html>
