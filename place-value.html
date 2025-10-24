@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Place Value Blocks</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --bg:#e5e7eb; --ink:#111827;
+      --tray:#3f3f46; --tab:#6b7280; --tab-dim:#9ca3af; --tab-ink:#fff;
+      --shadow:rgba(0,0,0,.25);
+      --block-size: 60px;
+    }
+    body{font-family:'Lexend',sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;touch-action:manipulation}
+
+    #app{position:relative;height:100%;width:100%}
+
+    /* workspace leaves room for tile dock */
+    #workPane{position:absolute;inset:0 0 30vh 0;background:transparent;overflow:hidden}
+    .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
+
+    /* Card container - holds multiple digit blocks */
+    .tile{
+      height:var(--block-size);
+      display:flex;
+      cursor:grab;
+      user-select:none;
+      flex-shrink:0;
+      touch-action:none;
+      gap:2px;
+    }
+    .tile:active{cursor:grabbing}
+
+    /* Individual digit block */
+    .digit-block{
+      width:var(--block-size);
+      height:var(--block-size);
+      border:2px solid #374151;
+      border-radius:6px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      box-shadow:0 2px 4px rgba(0,0,0,.25);
+      background:#60a5fa;
+      font-size:28px;
+      color:white;
+    }
+
+    .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
+    .work-pane-tile{position:absolute}
+
+    #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
+    .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
+    .btn.danger{background:#dc2626}
+
+    /* bottom dock: scrollable tile tray with tabs */
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:30vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
+
+    /* drawer tabs */
+    #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
+    .drawer-tab{padding:6px 12px;background:var(--tab);border:none;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif;color:white}
+    .drawer-tab:hover{background:#52525b}
+    .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
+
+    /* tiles area */
+    #baseTiles{flex:1;background:var(--tray);padding:8px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .base-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;width:100%}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="workPane">
+      <div class="hint">Drag place value blocks here to build numbers.</div>
+      <div id="controls">
+        <button id="resetButton" class="btn danger">Reset</button>
+      </div>
+    </div>
+
+    <!-- bottom dock with drawer tabs -->
+    <div id="bottomDock">
+      <!-- drawer tabs -->
+      <div id="drawerTabs">
+        <button class="drawer-tab active" data-drawer="ones">Ones</button>
+        <button class="drawer-tab" data-drawer="tens">Tens</button>
+        <button class="drawer-tab" data-drawer="hundreds">Hundreds</button>
+        <button class="drawer-tab" data-drawer="thousands">Thousands</button>
+      </div>
+      <!-- tiles area -->
+      <div id="baseTiles">
+        <div class="base-row" id="baseRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ====== CONFIG ======
+    const BLOCK_SIZE = 60;
+    const BLOCK_GAP = 2;
+    const SNAP_DISTANCE = 30;
+
+    // ====== PLACE VALUE DATA ======
+    const PLACE_VALUES = {
+      ones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      tens: [10, 20, 30, 40, 50, 60, 70, 80, 90],
+      hundreds: [100, 200, 300, 400, 500, 600, 700, 800, 900],
+      thousands: [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
+    };
+
+    // ====== STATE ======
+    let tiles = []; // tiles on the pane
+    let activeDrawer = 'ones'; // current drawer tab
+
+    // drag state
+    let draggedTile = null;
+    let dragOffset = {x: 0, y: 0};
+    let gesture = null;
+
+    // ====== UTIL ======
+    function getPlaceValueType(value) {
+      if (value < 10) return 'ones';
+      if (value < 100) return 'tens';
+      if (value < 1000) return 'hundreds';
+      return 'thousands';
+    }
+
+    function getDigitsArray(value) {
+      // Pad with zeros to match place value
+      const str = String(value);
+      return str.split('');
+    }
+
+    function getNumBlocks(placeValue) {
+      const blocks = { ones: 1, tens: 2, hundreds: 3, thousands: 4 };
+      return blocks[placeValue];
+    }
+
+    function getCardWidth(placeValue) {
+      const numBlocks = getNumBlocks(placeValue);
+      return numBlocks * BLOCK_SIZE + (numBlocks - 1) * BLOCK_GAP;
+    }
+
+    function getPlaceValueOrder(placeValue) {
+      const order = { ones: 1, tens: 2, hundreds: 3, thousands: 4 };
+      return order[placeValue];
+    }
+
+    // ====== DOM BUILDERS ======
+    function createTile(value, source) {
+      const el = document.createElement('div');
+      const placeValue = getPlaceValueType(value);
+      const digits = getDigitsArray(value);
+
+      el.className = `tile ${placeValue}`;
+      el.dataset.value = value;
+      el.dataset.placeValue = placeValue;
+      el.dataset.source = source;
+
+      // Create individual digit blocks
+      digits.forEach(digit => {
+        const digitBlock = document.createElement('div');
+        digitBlock.className = 'digit-block';
+        digitBlock.textContent = digit;
+        el.appendChild(digitBlock);
+      });
+
+      el.addEventListener('pointerdown', (e) => onPointerStart(e, value, source));
+      return el;
+    }
+
+    function renderTray() {
+      renderActiveDrawer();
+    }
+
+    function renderActiveDrawer() {
+      const baseRow = document.getElementById('baseRow');
+      baseRow.innerHTML = '';
+
+      let tilesToRender = [];
+      switch(activeDrawer) {
+        case 'ones':
+          tilesToRender = PLACE_VALUES.ones;
+          break;
+        case 'tens':
+          tilesToRender = PLACE_VALUES.tens;
+          break;
+        case 'hundreds':
+          tilesToRender = PLACE_VALUES.hundreds;
+          break;
+        case 'thousands':
+          tilesToRender = PLACE_VALUES.thousands;
+          break;
+      }
+
+      // render tiles for active drawer
+      tilesToRender.forEach(val => {
+        baseRow.appendChild(createTile(val, 'tray'));
+      });
+    }
+
+    function renderWorkPane() {
+      const workPane = document.getElementById('workPane');
+      const hint = workPane.querySelector('.hint');
+      workPane.querySelectorAll('.work-pane-tile').forEach(el => el.remove());
+      hint.style.display = tiles.length > 0 ? 'none' : 'block';
+
+      // Calculate visible digits for each tile considering overlays
+      tiles.forEach(tile => {
+        const visibleDigits = calculateVisibleDigits(tile);
+        if (visibleDigits.length === 0) return; // Skip if completely covered
+
+        const el = document.createElement('div');
+        el.className = `tile ${tile.placeValue} work-pane-tile`;
+        el.style.left = tile.x + 'px';
+        el.style.top = tile.y + 'px';
+        el.style.zIndex = tile.zIndex;
+        el.dataset.id = tile.id;
+
+        // Render visible digit blocks
+        visibleDigits.forEach(digit => {
+          const digitBlock = document.createElement('div');
+          digitBlock.className = 'digit-block';
+          digitBlock.textContent = digit;
+          el.appendChild(digitBlock);
+        });
+
+        el.addEventListener('pointerdown', (e) => onPointerStart(e, tile.value, tile.id));
+        workPane.appendChild(el);
+      });
+    }
+
+    function calculateVisibleDigits(tile) {
+      const allDigits = getDigitsArray(tile.value);
+      const numBlocks = getNumBlocks(tile.placeValue);
+
+      // Find all tiles that overlay this tile
+      const overlays = tiles.filter(other => {
+        if (other.id === tile.id) return false;
+        if (other.parentId !== tile.id) return false;
+        if (other.zIndex <= tile.zIndex) return false;
+
+        // Check if it's positioned at the right edge (overlaying)
+        const myWidth = getCardWidth(tile.placeValue);
+        const myRightEdge = tile.x + myWidth;
+        const otherWidth = getCardWidth(other.placeValue);
+        const otherRightEdge = other.x + otherWidth;
+
+        // Must align at right edge and vertically overlap
+        return Math.abs(myRightEdge - otherRightEdge) < 5 &&
+               Math.abs(tile.y - other.y) < 5;
+      });
+
+      if (overlays.length === 0) {
+        return allDigits;
+      }
+
+      // Find the overlay with the most blocks (it will cover the most)
+      const maxOverlay = overlays.reduce((max, curr) => {
+        const currBlocks = getNumBlocks(curr.placeValue);
+        const maxBlocks = getNumBlocks(max.placeValue);
+        return currBlocks > maxBlocks ? curr : max;
+      }, overlays[0]);
+
+      const blocksToHide = getNumBlocks(maxOverlay.placeValue);
+      const visibleBlocks = numBlocks - blocksToHide;
+
+      return allDigits.slice(0, visibleBlocks);
+    }
+
+    // ====== SNAP LOGIC ======
+    function findOverlayTarget(dropX, dropY, dragPlaceValue, excludeId) {
+      const dragOrder = getPlaceValueOrder(dragPlaceValue);
+      const dragWidth = getCardWidth(dragPlaceValue);
+      const dragHeight = BLOCK_SIZE;
+
+      const dragLeft = dropX;
+      const dragRight = dropX + dragWidth;
+      const dragTop = dropY;
+      const dragBottom = dropY + dragHeight;
+
+      let candidates = [];
+
+      for (const tile of tiles) {
+        if (tile.id === excludeId) continue;
+
+        const tileOrder = getPlaceValueOrder(tile.placeValue);
+
+        // Only snap to larger tiles (higher order)
+        if (tileOrder <= dragOrder) continue;
+
+        const tileWidth = getCardWidth(tile.placeValue);
+        const tileHeight = BLOCK_SIZE;
+        const tileLeft = tile.x;
+        const tileRight = tile.x + tileWidth;
+        const tileTop = tile.y;
+        const tileBottom = tile.y + tileHeight;
+
+        // Check for overlap
+        const overlapX = Math.min(dragRight, tileRight) - Math.max(dragLeft, tileLeft);
+        const overlapY = Math.min(dragBottom, tileBottom) - Math.max(dragTop, tileTop);
+
+        if (overlapX > 0 && overlapY > 0) {
+          // Calculate snap position (align RIGHT edges)
+          const snapX = tileRight - dragWidth;
+          const snapY = tile.y;
+
+          // Calculate distance
+          const distance = Math.hypot(dropX - snapX, dropY - snapY);
+
+          if (distance < SNAP_DISTANCE) {
+            candidates.push({
+              tile,
+              snapX,
+              snapY,
+              distance
+            });
+          }
+        }
+      }
+
+      // Sort by distance
+      candidates.sort((a, b) => a.distance - b.distance);
+
+      return candidates.length > 0 ? candidates[0] : null;
+    }
+
+    // ====== POINTERS / DRAG ======
+    function onPointerStart(e, value, source) {
+      if (e.isPrimary === false) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.currentTarget.setPointerCapture) {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch(_) {}
+      }
+
+      const targetRect = e.currentTarget.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const tStart = performance.now();
+
+      gesture = {
+        startX,
+        startY,
+        tStart,
+        moved: false,
+        lastX: startX,
+        lastY: startY,
+        source,
+        value,
+        pointerType: e.pointerType
+      };
+
+      const onMove = (ev) => {
+        const dx = ev.clientX - gesture.startX;
+        const dy = ev.clientY - gesture.startY;
+        gesture.lastX = ev.clientX;
+        gesture.lastY = ev.clientY;
+
+        if (!gesture.moved && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+          gesture.moved = true;
+          beginDrag(gesture, targetRect);
+        }
+        if (gesture.moved) handleMove(ev);
+      };
+
+      const onEnd = (ev) => {
+        handleEnd(ev);
+        cleanup();
+      };
+
+      function cleanup() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onEnd);
+        document.removeEventListener('pointercancel', onEnd);
+        gesture = null;
+      }
+
+      document.addEventListener('pointermove', onMove, {passive: false});
+      document.addEventListener('pointerup', onEnd, {passive: false});
+      document.addEventListener('pointercancel', onEnd, {passive: false});
+    }
+
+    function beginDrag(g, targetRect) {
+      const startX = g.startX;
+      const startY = g.startY;
+      const source = g.source;
+      const placeValue = getPlaceValueType(g.value);
+
+      if (source === 'tray') {
+        draggedTile = {
+          value: g.value,
+          placeValue,
+          x: startX,
+          y: startY,
+          sourceType: 'tray',
+          startX,
+          startY
+        };
+      } else {
+        const paneTile = tiles.find(t => t.id === source);
+        if (!paneTile) return;
+
+        draggedTile = {
+          ...paneTile,
+          x: startX,
+          y: startY,
+          sourceType: 'pane',
+          startX,
+          startY
+        };
+      }
+
+      dragOffset = {
+        x: startX - targetRect.left,
+        y: startY - targetRect.top
+      };
+
+      updateDragVisual();
+    }
+
+    function handleMove(e) {
+      if (!draggedTile) return;
+      e.preventDefault();
+      draggedTile.x = e.clientX;
+      draggedTile.y = e.clientY;
+      updateDragVisual();
+    }
+
+    function handleEnd(e) {
+      if (!draggedTile) return;
+      e.preventDefault();
+
+      const workPane = document.getElementById('workPane');
+      const paneRect = workPane.getBoundingClientRect();
+
+      const inside = e.clientX >= paneRect.left &&
+                     e.clientX <= paneRect.right &&
+                     e.clientY >= paneRect.top &&
+                     e.clientY <= paneRect.bottom;
+
+      if (inside) {
+        let dropX = e.clientX - paneRect.left - dragOffset.x;
+        let dropY = e.clientY - paneRect.top - dragOffset.y;
+
+        if (draggedTile.sourceType === 'tray') {
+          // New tile from tray
+          const overlay = findOverlayTarget(dropX, dropY, draggedTile.placeValue, null);
+
+          let finalX = dropX;
+          let finalY = dropY;
+          let parentId = null;
+          let zIndex = tiles.length;
+
+          if (overlay) {
+            finalX = overlay.snapX;
+            finalY = overlay.snapY;
+            parentId = overlay.tile.id;
+            // Smaller tiles have higher z-index
+            zIndex = overlay.tile.zIndex + 1;
+          }
+
+          const newTile = {
+            id: Date.now() + Math.random(),
+            value: draggedTile.value,
+            placeValue: draggedTile.placeValue,
+            x: finalX,
+            y: finalY,
+            parentId,
+            zIndex
+          };
+          tiles.push(newTile);
+        } else {
+          // Moving existing tile
+          const existingTile = tiles.find(t => t.id === draggedTile.id);
+          if (existingTile) {
+            const overlay = findOverlayTarget(dropX, dropY, draggedTile.placeValue, draggedTile.id);
+
+            if (overlay) {
+              existingTile.x = overlay.snapX;
+              existingTile.y = overlay.snapY;
+              existingTile.parentId = overlay.tile.id;
+              existingTile.zIndex = overlay.tile.zIndex + 1;
+            } else {
+              existingTile.x = dropX;
+              existingTile.y = dropY;
+              existingTile.parentId = null;
+              existingTile.zIndex = tiles.length;
+            }
+          }
+        }
+      } else if (draggedTile.sourceType === 'pane') {
+        // Remove tile if dragged outside
+        tiles = tiles.filter(t => t.id !== draggedTile.id);
+      }
+
+      finish();
+
+      function finish() {
+        draggedTile = null;
+        clearDragVisual();
+        renderWorkPane();
+      }
+    }
+
+    // ====== DRAG VISUALS ======
+    function updateDragVisual() {
+      clearDragVisual();
+      if (!draggedTile) return;
+
+      const g = document.createElement('div');
+      g.className = `tile ${draggedTile.placeValue} dragging`;
+
+      const digits = getDigitsArray(draggedTile.value);
+      digits.forEach(digit => {
+        const digitBlock = document.createElement('div');
+        digitBlock.className = 'digit-block';
+        digitBlock.textContent = digit;
+        g.appendChild(digitBlock);
+      });
+
+      const gx = draggedTile.x - dragOffset.x;
+      const gy = draggedTile.y - dragOffset.y;
+      g.style.transform = `translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+      g.dataset.dragging = 'true';
+      document.body.appendChild(g);
+    }
+
+    function clearDragVisual() {
+      document.querySelectorAll('[data-dragging="true"]').forEach(el => el.remove());
+    }
+
+    // ====== DRAWER TAB SWITCHING ======
+    function switchDrawer(drawerName) {
+      activeDrawer = drawerName;
+
+      // update tab active states
+      document.querySelectorAll('.drawer-tab').forEach(tab => {
+        if (tab.dataset.drawer === drawerName) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+
+      // render the new drawer
+      renderActiveDrawer();
+    }
+
+    // ====== BOOT ======
+    document.getElementById('resetButton').addEventListener('click', () => {
+      tiles = [];
+      draggedTile = null;
+      clearDragVisual();
+      renderWorkPane();
+    });
+
+    // setup drawer tab listeners
+    document.querySelectorAll('.drawer-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchDrawer(tab.dataset.drawer);
+      });
+    });
+
+    renderTray();
+    renderWorkPane();
+  </script>
+</body>
+</html>
