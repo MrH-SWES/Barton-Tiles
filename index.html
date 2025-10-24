@@ -16,11 +16,11 @@
 
     #app{position:relative;height:100%;width:100%}
 
-    /* workspace leaves room for tile dock (max 24vh) */
-    #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
-    .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
+    /* workspace leaves room for tile dock (increased for larger tiles) */
+    #wordPane{position:absolute;inset:0 0 60vh 0;background:transparent;overflow:hidden}
+    .hint{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
 
-    .tile{width:52px;height:52px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
+    .tile{height:208px;border:2px solid #374151;border-radius:0;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
     .tile:active{cursor:grabbing}
     .tile.blue{background:#60a5fa}.tile.yellow{background:#fbbf24}.tile.red{background:#f87171}.tile.green{background:#4ade80}.tile.orange{background:#fb923c}.tile.purple{background:#a78bfa}
     .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
@@ -31,11 +31,11 @@
     .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
 
     /* permanent alphabet section */
-    #alphabetSection{position:absolute;left:0;right:0;bottom:24vh;background:#f9fafb;padding:4px 6px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:3px}
+    #alphabetSection{position:absolute;left:0;right:0;bottom:30vh;background:#f9fafb;padding:4px 6px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:3px}
     .alphabet-row{display:flex;gap:3px;justify-content:center;flex-wrap:wrap}
 
     /* bottom dock: scrollable tile tray with tabs */
-    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:24vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
+    #bottomDock{position:absolute;left:0;right:0;bottom:0;height:30vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
 
     /* drawer tabs */
     #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
@@ -49,9 +49,9 @@
     .drawer-tab.orange-text{color:#fb923c}
     .drawer-tab.purple-text{color:#a78bfa}
 
-    /* tiles area - no scrolling */
-    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center}
-    .base-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;width:100%}
+    /* tiles area - allow horizontal scrolling for large tiles */
+    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-x:auto;overflow-y:hidden;display:flex;align-items:center}
+    .base-row{display:flex;flex-wrap:nowrap;gap:3px;justify-content:flex-start;min-width:100%}
 
     /* Chromebook optimizations */
     @media screen and (max-width: 1440px) {
@@ -61,9 +61,9 @@
 
     /* Smaller Chromebook screens (1366x768 and similar) */
     @media screen and (max-width: 1366px) {
-      #bottomDock{height:22vh}
-      #wordPane{inset:0 0 22vh 0}
-      #alphabetSection{bottom:22vh;padding:3px 5px;gap:2px}
+      #bottomDock{height:28vh}
+      #wordPane{inset:0 0 56vh 0}
+      #alphabetSection{bottom:28vh;padding:3px 5px;gap:2px}
       .alphabet-row{gap:2px}
       .drawer-tab{padding:5px 10px;font-size:11px}
       #baseTiles{padding:4px 5px}
@@ -73,9 +73,9 @@
 
     /* Very small screens (touch optimized) */
     @media screen and (max-height: 800px) {
-      #bottomDock{height:20vh}
-      #wordPane{inset:0 0 20vh 0}
-      #alphabetSection{bottom:20vh;padding:3px 5px}
+      #bottomDock{height:26vh}
+      #wordPane{inset:0 0 52vh 0}
+      #alphabetSection{bottom:26vh;padding:3px 5px}
     }
   </style>
 </head>
@@ -119,7 +119,9 @@
 
   <script>
     // ====== CONFIG ======
-    const TILE_SIZE = 52;
+    const TILE_HEIGHT = 208;  // 4x original (52 * 4)
+    const BASE_TILE_WIDTH = 104;  // 2x original (52 * 2)
+    const TILE_SIZE = TILE_HEIGHT; // For backward compatibility with vertical calculations
 
     // touch-friendly thresholds
     const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
@@ -152,16 +154,24 @@
     let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
 
     // ====== UTIL ======
+    function getTileWidth(text){
+      // Seamless width: each character gets BASE_TILE_WIDTH
+      return BASE_TILE_WIDTH * text.length;
+    }
     function getFontSize(text){
-      if(text.length<=2) return '22px';
-      if(text.length===3) return '18px';
-      if(text.length===4) return '15px';
-      if(text.length===5) return '13px';
-      return '11px';
+      // Adjust font sizes for larger tiles
+      if(text.length<=2) return '88px';  // 4x larger
+      if(text.length===3) return '72px';  // 4x larger
+      if(text.length===4) return '60px';  // 4x larger
+      if(text.length===5) return '52px';  // 4x larger
+      return '44px';  // 4x larger
     }
     function getUniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=> (a.length===b.length ? a.localeCompare(b) : a.length-b.length)); }
-    function sameRowY(y1,y2){ return Math.abs(y1-y2) < TILE_SIZE/2; }
-    function areFlush(a,b,tol=2){ return Math.abs(a.x + TILE_SIZE - b.x) <= tol; }
+    function sameRowY(y1,y2){ return Math.abs(y1-y2) < TILE_HEIGHT/2; }
+    function areFlush(a,b,tol=2){
+      const aWidth = getTileWidth(a.text);
+      return Math.abs(a.x + aWidth - b.x) <= tol;
+    }
 
     function recomputeGroupsAround(rowY){
       const row=tiles.filter(t=>sameRowY(t.y,rowY)).sort((a,b)=>a.x-b.x);
@@ -190,7 +200,8 @@
       for(let i=0;i<row.length-1;i++){
         const L=row[i], R=row[i+1];
         if(!areFlush(L,R)) continue;
-        const seamX=L.x + TILE_SIZE;
+        const leftWidth = getTileWidth(L.text);
+        const seamX=L.x + leftWidth;
         if(Math.abs(dropX - seamX) <= SEAM_CAPTURE){
           return { left:L, right:R, seamX, rowY:L.y };
         }
@@ -200,9 +211,10 @@
 
     function insertAtSeam(newTileData, seam){
       const {right,rowY}=seam;
+      const newWidth = getTileWidth(newTileData.text);
       const rightSide=tiles.filter(t=>sameRowY(t.y,rowY) && t.x>=right.x).sort((a,b)=>a.x-b.x);
-      rightSide.forEach(t=>{ t.x += TILE_SIZE; });
-      const newTile={ id: Date.now()+Math.random(), text:newTileData.text, color:newTileData.color, x: right.x - TILE_SIZE, y: rowY, groupId:null };
+      rightSide.forEach(t=>{ t.x += newWidth; });
+      const newTile={ id: Date.now()+Math.random(), text:newTileData.text, color:newTileData.color, x: right.x - newWidth, y: rowY, groupId:null };
       tiles.push(newTile);
       recomputeGroupsAround(rowY);
     }
@@ -212,6 +224,7 @@
       const el=document.createElement('div');
       el.className=`tile ${color}`;
       el.textContent=text;
+      el.style.width=getTileWidth(text)+'px';
       el.style.fontSize=getFontSize(text);
       el.dataset.text=text; el.dataset.color=color; el.dataset.source=source;
       el.addEventListener('pointerdown',(e)=>onPointerStart(e,text,color,source));
@@ -319,6 +332,7 @@
         const el=document.createElement('div');
         el.className=`tile ${tile.color} word-pane-tile`;
         el.textContent=tile.text;
+        el.style.width=getTileWidth(tile.text)+'px';
         el.style.fontSize=getFontSize(tile.text);
         el.style.left=tile.x+'px';
         el.style.top=tile.y+'px';
@@ -329,23 +343,27 @@
     }
 
     // ====== SNAP (half-tile overlap detection) ======
-    function findNearbyTiles(dropX, dropY, excludeId){
-      const dragLeft=dropX, dragRight=dropX+TILE_SIZE, dragTop=dropY, dragBottom=dropY+TILE_SIZE;
-      const halfTile = TILE_SIZE / 2;
+    function findNearbyTiles(dropX, dropY, excludeId, dragTileText){
+      const dragWidth = getTileWidth(dragTileText);
+      const dragLeft=dropX, dragRight=dropX+dragWidth, dragTop=dropY, dragBottom=dropY+TILE_HEIGHT;
+      const halfTile = TILE_HEIGHT / 2;
       const candidates=[];
 
       for(const tile of tiles){
         if(tile.id===excludeId) continue;
-        const nbrLeft=tile.x, nbrRight=tile.x+TILE_SIZE, nbrTop=tile.y, nbrBottom=tile.y+TILE_SIZE;
+        const nbrWidth = getTileWidth(tile.text);
+        const nbrLeft=tile.x, nbrRight=tile.x+nbrWidth, nbrTop=tile.y, nbrBottom=tile.y+TILE_HEIGHT;
 
         // Check vertical overlap first
         const overlapY=Math.min(dragBottom,nbrBottom) - Math.max(dragTop,nbrTop);
         if(overlapY<=0 || overlapY<MIN_VERTICAL_OVERLAP) continue;
 
         // Check if left half of drag tile overlaps with right half of stationary tile
+        const dragHalfWidth = dragWidth / 2;
+        const nbrHalfWidth = nbrWidth / 2;
         const leftHalfDragStart = dragLeft;
-        const leftHalfDragEnd = dragLeft + halfTile;
-        const rightHalfNbrStart = nbrLeft + halfTile;
+        const leftHalfDragEnd = dragLeft + dragHalfWidth;
+        const rightHalfNbrStart = nbrLeft + nbrHalfWidth;
         const rightHalfNbrEnd = nbrRight;
 
         if(Math.max(leftHalfDragStart, rightHalfNbrStart) < Math.min(leftHalfDragEnd, rightHalfNbrEnd)){
@@ -354,14 +372,14 @@
         }
 
         // Check if right half of drag tile overlaps with left half of stationary tile
-        const rightHalfDragStart = dragLeft + halfTile;
+        const rightHalfDragStart = dragLeft + dragHalfWidth;
         const rightHalfDragEnd = dragRight;
         const leftHalfNbrStart = nbrLeft;
-        const leftHalfNbrEnd = nbrLeft + halfTile;
+        const leftHalfNbrEnd = nbrLeft + nbrHalfWidth;
 
         if(Math.max(rightHalfDragStart, leftHalfNbrStart) < Math.min(rightHalfDragEnd, leftHalfNbrEnd)){
           // Snap to the left side of the stationary tile
-          candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY:tile.y });
+          candidates.push({ tile, edge:'left', snapX:nbrLeft - dragWidth, snapY:tile.y });
         }
       }
 
@@ -376,8 +394,10 @@
         if(!aHasGroup && bHasGroup) return 1;
 
         // If both have groups or both don't, sort by distance
-        const ax=Math.abs(a.edge==='right'?(a.tile.x+TILE_SIZE)-dragLeft : a.tile.x - dragRight);
-        const bx=Math.abs(b.edge==='right'?(b.tile.x+TILE_SIZE)-dragLeft : b.tile.x - dragRight);
+        const aTileWidth = getTileWidth(a.tile.text);
+        const bTileWidth = getTileWidth(b.tile.text);
+        const ax=Math.abs(a.edge==='right'?(a.tile.x+aTileWidth)-dragLeft : a.tile.x - dragRight);
+        const bx=Math.abs(b.edge==='right'?(b.tile.x+bTileWidth)-dragLeft : b.tile.x - dragRight);
         if(ax!==bx) return ax-bx;
         const ay=Math.abs(a.snapY - dropY), by=Math.abs(b.snapY - dropY);
         return ay - by;
@@ -485,7 +505,7 @@
           const seam=findSeamNear(dropX, dropY);
           if(seam){ insertAtSeam({text:draggedTile.text,color:draggedTile.color}, seam); finish(); return; }
 
-          const nearby=findNearbyTiles(dropX, dropY, null);
+          const nearby=findNearbyTiles(dropX, dropY, null, draggedTile.text);
           let finalX=dropX, finalY=dropY, groupId=null;
           if(nearby.length>0){ const c=nearby[0]; finalX=c.snapX; finalY=c.snapY; groupId=c.tile.groupId || c.tile.id; }
           const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:finalX, y:finalY, groupId };
@@ -507,7 +527,7 @@
             const mainDropX=e.clientX - paneRect.left - (draggedTile.startX - main.x);
             const mainDropY=e.clientY - paneRect.top  - (draggedTile.startY - main.y);
 
-            const nearMain=findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
+            const nearMain=findNearbyTiles(mainDropX, mainDropY, draggedTile.id, main.text);
             let snapAdj={dx:0,dy:0,groupId:null};
             if(nearMain.length>0){ const c=nearMain[0]; snapAdj.dx=c.snapX-mainDropX; snapAdj.dy=c.snapY-mainDropY; snapAdj.groupId=c.tile.groupId||c.tile.id; }
 
@@ -547,6 +567,7 @@
           const g=document.createElement('div');
           g.className=`tile ${t.color} dragging`;
           g.textContent=t.text;
+          g.style.width=getTileWidth(t.text)+'px';
           g.style.fontSize=getFontSize(t.text);
           const gx=t.x + dx + paneRect.left, gy=t.y + dy + paneRect.top;
           g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
@@ -557,6 +578,7 @@
         const g=document.createElement('div');
         g.className=`tile ${draggedTile.color} dragging`;
         g.textContent=draggedTile.text;
+        g.style.width=getTileWidth(draggedTile.text)+'px';
         g.style.fontSize=getFontSize(draggedTile.text);
         const gx=draggedTile.x - dragOffset.x, gy=draggedTile.y - dragOffset.y;
         g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
