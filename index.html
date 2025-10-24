@@ -21,31 +21,33 @@
     #workPane{position:absolute;inset:0 0 30vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
 
-    /* Base tile styling - will be sized based on place value */
+    /* Card container - holds multiple digit blocks */
     .tile{
+      height:var(--block-size);
+      display:flex;
+      cursor:grab;
+      user-select:none;
+      flex-shrink:0;
+      touch-action:none;
+      gap:2px;
+    }
+    .tile:active{cursor:grabbing}
+
+    /* Individual digit block */
+    .digit-block{
+      width:var(--block-size);
       height:var(--block-size);
       border:2px solid #374151;
       border-radius:6px;
-      cursor:grab;
       display:flex;
       align-items:center;
       justify-content:center;
       font-weight:700;
-      user-select:none;
       box-shadow:0 2px 4px rgba(0,0,0,.25);
-      flex-shrink:0;
-      touch-action:none;
       background:#60a5fa;
-      font-size:24px;
+      font-size:28px;
       color:white;
     }
-    .tile:active{cursor:grabbing}
-
-    /* Width based on place value */
-    .tile.ones{width:calc(var(--block-size) * 1)}
-    .tile.tens{width:calc(var(--block-size) * 2)}
-    .tile.hundreds{width:calc(var(--block-size) * 3)}
-    .tile.thousands{width:calc(var(--block-size) * 4)}
 
     .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
     .work-pane-tile{position:absolute}
@@ -96,7 +98,8 @@
   <script>
     // ====== CONFIG ======
     const BLOCK_SIZE = 60;
-    const SNAP_DISTANCE = 20;
+    const BLOCK_GAP = 2;
+    const SNAP_DISTANCE = 30;
 
     // ====== PLACE VALUE DATA ======
     const PLACE_VALUES = {
@@ -123,9 +126,20 @@
       return 'thousands';
     }
 
-    function getBlockWidth(placeValue) {
-      const widths = { ones: 1, tens: 2, hundreds: 3, thousands: 4 };
-      return widths[placeValue] * BLOCK_SIZE;
+    function getDigitsArray(value) {
+      // Pad with zeros to match place value
+      const str = String(value);
+      return str.split('');
+    }
+
+    function getNumBlocks(placeValue) {
+      const blocks = { ones: 1, tens: 2, hundreds: 3, thousands: 4 };
+      return blocks[placeValue];
+    }
+
+    function getCardWidth(placeValue) {
+      const numBlocks = getNumBlocks(placeValue);
+      return numBlocks * BLOCK_SIZE + (numBlocks - 1) * BLOCK_GAP;
     }
 
     function getPlaceValueOrder(placeValue) {
@@ -137,11 +151,21 @@
     function createTile(value, source) {
       const el = document.createElement('div');
       const placeValue = getPlaceValueType(value);
+      const digits = getDigitsArray(value);
+
       el.className = `tile ${placeValue}`;
-      el.textContent = value;
       el.dataset.value = value;
       el.dataset.placeValue = placeValue;
       el.dataset.source = source;
+
+      // Create individual digit blocks
+      digits.forEach(digit => {
+        const digitBlock = document.createElement('div');
+        digitBlock.className = 'digit-block';
+        digitBlock.textContent = digit;
+        el.appendChild(digitBlock);
+      });
+
       el.addEventListener('pointerdown', (e) => onPointerStart(e, value, source));
       return el;
     }
@@ -182,33 +206,73 @@
       workPane.querySelectorAll('.work-pane-tile').forEach(el => el.remove());
       hint.style.display = tiles.length > 0 ? 'none' : 'block';
 
-      // Sort tiles by z-index (larger tiles first, then by order added)
-      const sortedTiles = [...tiles].sort((a, b) => {
-        // First sort by place value (larger blocks behind smaller blocks)
-        const orderA = getPlaceValueOrder(a.placeValue);
-        const orderB = getPlaceValueOrder(b.placeValue);
-        if (orderA !== orderB) return orderB - orderA; // reverse order (larger first)
-        // Then by z-index
-        return a.zIndex - b.zIndex;
-      });
+      // Calculate visible digits for each tile considering overlays
+      tiles.forEach(tile => {
+        const visibleDigits = calculateVisibleDigits(tile);
+        if (visibleDigits.length === 0) return; // Skip if completely covered
 
-      sortedTiles.forEach(tile => {
         const el = document.createElement('div');
         el.className = `tile ${tile.placeValue} work-pane-tile`;
-        el.textContent = tile.value;
         el.style.left = tile.x + 'px';
         el.style.top = tile.y + 'px';
         el.style.zIndex = tile.zIndex;
         el.dataset.id = tile.id;
+
+        // Render visible digit blocks
+        visibleDigits.forEach(digit => {
+          const digitBlock = document.createElement('div');
+          digitBlock.className = 'digit-block';
+          digitBlock.textContent = digit;
+          el.appendChild(digitBlock);
+        });
+
         el.addEventListener('pointerdown', (e) => onPointerStart(e, tile.value, tile.id));
         workPane.appendChild(el);
       });
     }
 
+    function calculateVisibleDigits(tile) {
+      const allDigits = getDigitsArray(tile.value);
+      const numBlocks = getNumBlocks(tile.placeValue);
+
+      // Find all tiles that overlay this tile
+      const overlays = tiles.filter(other => {
+        if (other.id === tile.id) return false;
+        if (other.parentId !== tile.id) return false;
+        if (other.zIndex <= tile.zIndex) return false;
+
+        // Check if it's positioned at the right edge (overlaying)
+        const myWidth = getCardWidth(tile.placeValue);
+        const myRightEdge = tile.x + myWidth;
+        const otherWidth = getCardWidth(other.placeValue);
+        const otherRightEdge = other.x + otherWidth;
+
+        // Must align at right edge and vertically overlap
+        return Math.abs(myRightEdge - otherRightEdge) < 5 &&
+               Math.abs(tile.y - other.y) < 5;
+      });
+
+      if (overlays.length === 0) {
+        return allDigits;
+      }
+
+      // Find the overlay with the most blocks (it will cover the most)
+      const maxOverlay = overlays.reduce((max, curr) => {
+        const currBlocks = getNumBlocks(curr.placeValue);
+        const maxBlocks = getNumBlocks(max.placeValue);
+        return currBlocks > maxBlocks ? curr : max;
+      }, overlays[0]);
+
+      const blocksToHide = getNumBlocks(maxOverlay.placeValue);
+      const visibleBlocks = numBlocks - blocksToHide;
+
+      return allDigits.slice(0, visibleBlocks);
+    }
+
     // ====== SNAP LOGIC ======
     function findOverlayTarget(dropX, dropY, dragPlaceValue, excludeId) {
       const dragOrder = getPlaceValueOrder(dragPlaceValue);
-      const dragWidth = getBlockWidth(dragPlaceValue);
+      const dragWidth = getCardWidth(dragPlaceValue);
       const dragHeight = BLOCK_SIZE;
 
       const dragLeft = dropX;
@@ -223,10 +287,10 @@
 
         const tileOrder = getPlaceValueOrder(tile.placeValue);
 
-        // Only snap to larger tiles (smaller place value order means larger tile)
+        // Only snap to larger tiles (higher order)
         if (tileOrder <= dragOrder) continue;
 
-        const tileWidth = getBlockWidth(tile.placeValue);
+        const tileWidth = getCardWidth(tile.placeValue);
         const tileHeight = BLOCK_SIZE;
         const tileLeft = tile.x;
         const tileRight = tile.x + tileWidth;
@@ -238,19 +302,21 @@
         const overlapY = Math.min(dragBottom, tileBottom) - Math.max(dragTop, tileTop);
 
         if (overlapX > 0 && overlapY > 0) {
-          // Calculate snap position (align to right side of larger tile)
+          // Calculate snap position (align RIGHT edges)
           const snapX = tileRight - dragWidth;
           const snapY = tile.y;
 
           // Calculate distance
           const distance = Math.hypot(dropX - snapX, dropY - snapY);
 
-          candidates.push({
-            tile,
-            snapX,
-            snapY,
-            distance
-          });
+          if (distance < SNAP_DISTANCE) {
+            candidates.push({
+              tile,
+              snapX,
+              snapY,
+              distance
+            });
+          }
         }
       }
 
@@ -448,7 +514,15 @@
 
       const g = document.createElement('div');
       g.className = `tile ${draggedTile.placeValue} dragging`;
-      g.textContent = draggedTile.value;
+
+      const digits = getDigitsArray(draggedTile.value);
+      digits.forEach(digit => {
+        const digitBlock = document.createElement('div');
+        digitBlock.className = 'digit-block';
+        digitBlock.textContent = digit;
+        g.appendChild(digitBlock);
+      });
+
       const gx = draggedTile.x - dragOffset.x;
       const gy = draggedTile.y - dragOffset.y;
       g.style.transform = `translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
