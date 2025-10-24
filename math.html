@@ -30,16 +30,22 @@
     .manipulative{border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
     .manipulative:active{cursor:grabbing}
 
-    /* Place value card styles - 3" high (156px), proportional width (120px) */
-    .place-value-card{width:120px;height:156px;font-size:42px}
-    .place-value-card.ones{background:#60a5fa;z-index:4}     /* blue - highest */
-    .place-value-card.tens{background:#4ade80;z-index:3}     /* green */
-    .place-value-card.hundreds{background:#f87171;z-index:2} /* red */
-    .place-value-card.thousands{background:#fb923c;z-index:1}/* orange - lowest */
-    .workspace-item.place-value-card.ones{z-index:14}
-    .workspace-item.place-value-card.tens{z-index:13}
-    .workspace-item.place-value-card.hundreds{z-index:12}
-    .workspace-item.place-value-card.thousands{z-index:11}
+    /* Place value card styles - 3" high (156px), proportional widths */
+    .place-value-card{height:156px;background:#60a5fa}
+    .place-value-card.ones{width:120px;z-index:7;font-size:52px}           /* 1x - highest z-index */
+    .place-value-card.tens{width:240px;z-index:6;font-size:52px}           /* 2x */
+    .place-value-card.hundreds{width:360px;z-index:5;font-size:52px}       /* 3x */
+    .place-value-card.thousands{width:480px;z-index:4;font-size:48px}      /* 4x */
+    .place-value-card.ten-thousands{width:600px;z-index:3;font-size:44px}  /* 5x */
+    .place-value-card.hundred-thousands{width:720px;z-index:2;font-size:40px} /* 6x */
+    .place-value-card.millions{width:840px;z-index:1;font-size:36px}       /* 7x - lowest z-index */
+    .workspace-item.place-value-card.ones{z-index:17}
+    .workspace-item.place-value-card.tens{z-index:16}
+    .workspace-item.place-value-card.hundreds{z-index:15}
+    .workspace-item.place-value-card.thousands{z-index:14}
+    .workspace-item.place-value-card.ten-thousands{z-index:13}
+    .workspace-item.place-value-card.hundred-thousands{z-index:12}
+    .workspace-item.place-value-card.millions{z-index:11}
 
     /* Fraction bar styles - 1" tall (52px), varying widths */
     .fraction-bar{height:52px;font-size:20px}
@@ -120,9 +126,12 @@
       <!-- drawer tabs -->
       <div id="drawerTabs">
         <button class="drawer-tab active blue-text" data-drawer="ones">Ones</button>
-        <button class="drawer-tab green-text" data-drawer="tens">Tens</button>
-        <button class="drawer-tab red-text" data-drawer="hundreds">Hundreds</button>
-        <button class="drawer-tab orange-text" data-drawer="thousands">Thousands</button>
+        <button class="drawer-tab blue-text" data-drawer="tens">Tens</button>
+        <button class="drawer-tab blue-text" data-drawer="hundreds">Hundreds</button>
+        <button class="drawer-tab blue-text" data-drawer="thousands">Thousands</button>
+        <button class="drawer-tab blue-text" data-drawer="ten-thousands">Ten Thousands</button>
+        <button class="drawer-tab blue-text" data-drawer="hundred-thousands">Hundred Thousands</button>
+        <button class="drawer-tab blue-text" data-drawer="millions">Millions</button>
         <button class="drawer-tab purple-text" data-drawer="fractions">Fractions</button>
       </div>
       <!-- manipulatives area -->
@@ -134,7 +143,6 @@
 
   <script>
     // ====== CONFIG ======
-    const PLACE_VALUE_WIDTH = 120;
     const PLACE_VALUE_HEIGHT = 156;
     const FRACTION_HEIGHT = 52;
     const FRACTION_WIDTHS = {
@@ -192,15 +200,48 @@
         { text: '900', type: 'place-value-card', category: 'hundreds' }
       ],
       thousands: [
-        { text: '1000', type: 'place-value-card', category: 'thousands' },
-        { text: '2000', type: 'place-value-card', category: 'thousands' },
-        { text: '3000', type: 'place-value-card', category: 'thousands' },
-        { text: '4000', type: 'place-value-card', category: 'thousands' },
-        { text: '5000', type: 'place-value-card', category: 'thousands' },
-        { text: '6000', type: 'place-value-card', category: 'thousands' },
-        { text: '7000', type: 'place-value-card', category: 'thousands' },
-        { text: '8000', type: 'place-value-card', category: 'thousands' },
-        { text: '9000', type: 'place-value-card', category: 'thousands' }
+        { text: '1,000', type: 'place-value-card', category: 'thousands' },
+        { text: '2,000', type: 'place-value-card', category: 'thousands' },
+        { text: '3,000', type: 'place-value-card', category: 'thousands' },
+        { text: '4,000', type: 'place-value-card', category: 'thousands' },
+        { text: '5,000', type: 'place-value-card', category: 'thousands' },
+        { text: '6,000', type: 'place-value-card', category: 'thousands' },
+        { text: '7,000', type: 'place-value-card', category: 'thousands' },
+        { text: '8,000', type: 'place-value-card', category: 'thousands' },
+        { text: '9,000', type: 'place-value-card', category: 'thousands' }
+      ],
+      'ten-thousands': [
+        { text: '10,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '20,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '30,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '40,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '50,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '60,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '70,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '80,000', type: 'place-value-card', category: 'ten-thousands' },
+        { text: '90,000', type: 'place-value-card', category: 'ten-thousands' }
+      ],
+      'hundred-thousands': [
+        { text: '100,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '200,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '300,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '400,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '500,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '600,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '700,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '800,000', type: 'place-value-card', category: 'hundred-thousands' },
+        { text: '900,000', type: 'place-value-card', category: 'hundred-thousands' }
+      ],
+      millions: [
+        { text: '1,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '2,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '3,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '4,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '5,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '6,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '7,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '8,000,000', type: 'place-value-card', category: 'millions' },
+        { text: '9,000,000', type: 'place-value-card', category: 'millions' }
       ],
       fractions: [
         { text: '1', type: 'fraction-bar', category: 'whole' },
@@ -265,9 +306,19 @@
     let draggedItem = null, draggedGroup = [], dragOffset = {x:0,y:0}, gesture = null, dragStartPos = null;
 
     // ====== UTIL ======
+    const PLACE_VALUE_WIDTHS = {
+      'ones': 120,           // 1x
+      'tens': 240,           // 2x
+      'hundreds': 360,       // 3x
+      'thousands': 480,      // 4x
+      'ten-thousands': 600,  // 5x
+      'hundred-thousands': 720, // 6x
+      'millions': 840        // 7x
+    };
+
     function getItemDimensions(item) {
       if (item.type === 'place-value-card') {
-        return { width: PLACE_VALUE_WIDTH, height: PLACE_VALUE_HEIGHT };
+        return { width: PLACE_VALUE_WIDTHS[item.category] || 120, height: PLACE_VALUE_HEIGHT };
       } else if (item.type === 'fraction-bar') {
         return { width: FRACTION_WIDTHS[item.category], height: FRACTION_HEIGHT };
       }
