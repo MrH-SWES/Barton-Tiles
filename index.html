@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board + TTS & Ghosts</title>
+  <title>Reading Tile Board</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -16,7 +16,6 @@
 
     #app{position:relative;height:100%;width:100%}
 
-    /* workspace leaves room for tile dock (max 24vh) */
     #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
     .sub-hint{display:block;font-size:14px;margin-top:8px;opacity:0.7}
@@ -28,7 +27,7 @@
     .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
     .word-pane-tile{position:absolute}
 
-    /* --- NEW: Ghost Tile Style --- */
+    /* Ghost Tile Style */
     .ghost-tile {
       position: absolute;
       width: 52px; height: 52px;
@@ -41,83 +40,51 @@
 
     #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
-    .btn.secondary{background:#374151}.btn.danger{background:#dc2626}
+    .btn.secondary{background:#374151}.btn.danger{background:#dc2626}.btn.primary{background:#2563eb}
 
     /* permanent alphabet section */
     #alphabetSection{position:absolute;left:0;right:0;bottom:24vh;background:#f9fafb;padding:4px 6px;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:15;display:flex;flex-direction:column;gap:3px}
     .alphabet-row{display:flex;gap:3px;justify-content:center;flex-wrap:wrap}
 
-    /* bottom dock: scrollable tile tray with tabs */
+    /* bottom dock */
     #bottomDock{position:absolute;left:0;right:0;bottom:0;height:24vh;pointer-events:none;z-index:20;display:flex;flex-direction:column}
-
-    /* drawer tabs */
     #drawerTabs{display:flex;background:var(--tab-dim);pointer-events:auto;border-bottom:2px solid var(--shadow);overflow-x:auto;flex-shrink:0}
     .drawer-tab{padding:6px 12px;background:var(--tab);border:none;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;border-right:1px solid rgba(0,0,0,.2);transition:background .2s;flex-shrink:0;font-family:'Lexend',sans-serif}
     .drawer-tab:hover{background:#52525b}
     .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
-    .drawer-tab.blue-text{color:#60a5fa}
-    .drawer-tab.yellow-text{color:#fbbf24}
-    .drawer-tab.red-text{color:#f87171}
-    .drawer-tab.green-text{color:#4ade80}
-    .drawer-tab.orange-text{color:#fb923c}
-    .drawer-tab.purple-text{color:#a78bfa}
+    .drawer-tab.blue-text{color:#60a5fa}.drawer-tab.yellow-text{color:#fbbf24}.drawer-tab.red-text{color:#f87171}.drawer-tab.green-text{color:#4ade80}.drawer-tab.orange-text{color:#fb923c}.drawer-tab.purple-text{color:#a78bfa}
 
-    /* tiles area - no scrolling */
     #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center}
     .base-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;width:100%}
 
-    /* Chromebook optimizations */
-    @media screen and (max-width: 1440px) {
-      .hint{font-size:16px}
-      #controls{top:6px;left:6px}
-    }
-
-    /* Smaller Chromebook screens (1366x768 and similar) */
-    @media screen and (max-width: 1366px) {
-      #bottomDock{height:22vh}
-      #wordPane{inset:0 0 22vh 0}
-      #alphabetSection{bottom:22vh;padding:3px 5px;gap:2px}
-      .alphabet-row{gap:2px}
-      .drawer-tab{padding:5px 10px;font-size:11px}
-      #baseTiles{padding:4px 5px}
-      .base-row{gap:2px}
-      .hint{font-size:15px}
-    }
-
-    /* Very small screens (touch optimized) */
-    @media screen and (max-height: 800px) {
-      #bottomDock{height:20vh}
-      #wordPane{inset:0 0 20vh 0}
-      #alphabetSection{bottom:20vh;padding:3px 5px}
-    }
+    /* Media Queries */
+    @media screen and (max-width: 1440px) { .hint{font-size:16px} #controls{top:6px;left:6px} }
+    @media screen and (max-width: 1366px) { #bottomDock{height:22vh} #wordPane{inset:0 0 22vh 0} #alphabetSection{bottom:22vh;padding:3px 5px;gap:2px} .alphabet-row{gap:2px} .drawer-tab{padding:5px 10px;font-size:11px} #baseTiles{padding:4px 5px} .base-row{gap:2px} .hint{font-size:15px} }
+    @media screen and (max-height: 800px) { #bottomDock{height:20vh} #wordPane{inset:0 0 20vh 0} #alphabetSection{bottom:20vh;padding:3px 5px} }
   </style>
 </head>
 <body>
   <div id="app">
     <div id="wordPane">
-      <div class="hint">
-        Drag tiles here to build words.
-        <span class="sub-hint">Double-tap a word to hear it! 🔊</span>
-      </div>
+      <div class="hint">Drag tiles here to build words.</div>
       <div id="controls">
         <select id="lessonSelect" class="btn secondary">
           <option value="2">Book 2</option><option value="3">Book 3</option><option value="4">Book 4</option>
           <option value="5">Book 5</option><option value="6">Book 6</option><option value="7">Book 7</option>
           <option value="8">Book 8</option><option value="9">Book 9</option><option value="10">Book 10</option>
         </select>
+        <!-- VISIBLE SPEAK BUTTON ADDED HERE -->
+        <button id="speakButton" class="btn primary">Speak 🔊</button>
         <button id="resetButton" class="btn danger">Reset</button>
       </div>
     </div>
 
-    <!-- permanent alphabet section -->
     <div id="alphabetSection">
       <div class="alphabet-row" id="alphabetRow1"></div>
       <div class="alphabet-row" id="alphabetRow2"></div>
     </div>
 
-    <!-- bottom dock with drawer tabs -->
     <div id="bottomDock">
-      <!-- drawer tabs -->
       <div id="drawerTabs">
         <button class="drawer-tab active blue-text" data-drawer="consonants">Consonants</button>
         <button class="drawer-tab yellow-text" data-drawer="vowels">Vowels</button>
@@ -126,7 +93,6 @@
         <button class="drawer-tab orange-text" data-drawer="prefixes">Prefixes</button>
         <button class="drawer-tab purple-text" data-drawer="roots">Roots</button>
       </div>
-      <!-- tiles area -->
       <div id="baseTiles">
         <div class="base-row" id="baseRow"></div>
       </div>
@@ -134,14 +100,12 @@
   </div>
 
   <script>
-    // ====== CONFIG ======
     const TILE_SIZE = 52;
-    const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
-    const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
+    const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
+    const SEAM_CAPTURE = 22;
 
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
-    const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
 
     // ====== LEVEL DATA ======
     const B_LEVELS = {
@@ -159,13 +123,9 @@
     // ====== STATE ======
     let baseTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
     let blueConsonants=[], yellowVowels=[]; 
-    let tiles=[]; // tiles on the pane
+    let tiles=[];
     let activeDrawer='consonants'; 
-
-    // drag state
     let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
-    
-    // tts double-tap state
     let lastTapId = null, lastTapTime = 0;
 
     // ====== UTIL ======
@@ -201,36 +161,12 @@
       return row.slice(L,R+1);
     }
 
-    // ====== SEAM INSERTION ======
-    function findSeamNear(dropX, dropY){
-      const row=tiles.filter(t=>sameRowY(t.y, dropY)).sort((a,b)=>a.x-b.x);
-      for(let i=0;i<row.length-1;i++){
-        const L=row[i], R=row[i+1];
-        if(!areFlush(L,R)) continue;
-        const seamX=L.x + TILE_SIZE;
-        if(Math.abs(dropX - seamX) <= SEAM_CAPTURE){
-          return { left:L, right:R, seamX, rowY:L.y };
-        }
-      }
-      return null;
-    }
-
-    function insertAtSeam(newTileData, seam){
-      const {right,rowY}=seam;
-      const rightSide=tiles.filter(t=>sameRowY(t.y,rowY) && t.x>=right.x).sort((a,b)=>a.x-b.x);
-      rightSide.forEach(t=>{ t.x += TILE_SIZE; });
-      const newTile={ id: Date.now()+Math.random(), text:newTileData.text, color:newTileData.color, x: right.x - TILE_SIZE, y: rowY, groupId:null };
-      tiles.push(newTile);
-      recomputeGroupsAround(rowY);
-    }
-
-    // ====== DOM BUILDERS ======
+    // ====== DOM & RENDER ======
     function createTile(text,color,source){
       const el=document.createElement('div');
       el.className=`tile ${color}`;
       el.textContent=text;
       el.style.fontSize=getFontSize(text);
-      el.dataset.text=text; el.dataset.color=color; el.dataset.source=source;
       el.addEventListener('pointerdown',(e)=>onPointerStart(e,text,color,source));
       return el;
     }
@@ -249,7 +185,6 @@
         if(L.orange) orangeTiles.push(...L.orange);
         if(L.purple) purpleTiles.push(...L.purple);
       }
-
       blueConsonants=getUniqueSorted(allBlue);
       yellowVowels=getUniqueSorted(allYellow);
       redTiles=getUniqueSorted(redTiles);
@@ -262,39 +197,29 @@
     function renderActiveDrawer(){
       const baseRow = document.getElementById('baseRow');
       baseRow.innerHTML = '';
-      let tilesToRender = [];
-      let color = 'blue';
+      let list = [], color = 'blue';
+      if(activeDrawer==='consonants') { list=blueConsonants.filter(c=>c.length>1); color='blue'; }
+      else if(activeDrawer==='vowels') { list=yellowVowels.filter(v=>v.length>1); color='yellow'; }
+      else if(activeDrawer==='units') { list=redTiles; color='red'; }
+      else if(activeDrawer==='endings') { list=greenTiles; color='green'; }
+      else if(activeDrawer==='prefixes') { list=orangeTiles; color='orange'; }
+      else if(activeDrawer==='roots') { list=purpleTiles; color='purple'; }
 
-      switch(activeDrawer){
-        case 'consonants': tilesToRender = blueConsonants.filter(c => c.length > 1); color = 'blue'; break;
-        case 'vowels': tilesToRender = yellowVowels.filter(v => v.length > 1); color = 'yellow'; break;
-        case 'units': tilesToRender = redTiles; color = 'red'; break;
-        case 'endings': tilesToRender = greenTiles; color = 'green'; break;
-        case 'prefixes': tilesToRender = orangeTiles; color = 'orange'; break;
-        case 'roots': tilesToRender = purpleTiles; color = 'purple'; break;
-      }
-
-      tilesToRender.forEach(txt => {
-        baseRow.appendChild(createTile(txt, color, 'tray'));
-      });
+      list.forEach(txt => baseRow.appendChild(createTile(txt, color, 'tray')));
     }
 
     function renderAlphabet(){
-      const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
-      const vowels = new Set(['a', 'e', 'i', 'o', 'u']);
-      const row1 = document.getElementById('alphabetRow1');
-      const row2 = document.getElementById('alphabetRow2');
-      row1.innerHTML = ''; row2.innerHTML = '';
-
-      alphabet.slice(0, 13).forEach(letter => row1.appendChild(createTile(letter, vowels.has(letter) ? 'yellow' : 'blue', 'alphabet')));
-      alphabet.slice(13, 26).forEach(letter => row2.appendChild(createTile(letter, vowels.has(letter) ? 'yellow' : 'blue', 'alphabet')));
+      const a='abcdefghijklmnopqrstuvwxyz'.split(''), v=new Set(['a','e','i','o','u']);
+      const r1=document.getElementById('alphabetRow1'), r2=document.getElementById('alphabetRow2');
+      r1.innerHTML=''; r2.innerHTML='';
+      a.slice(0,13).forEach(l=>r1.appendChild(createTile(l,v.has(l)?'yellow':'blue','alphabet')));
+      a.slice(13,26).forEach(l=>r2.appendChild(createTile(l,v.has(l)?'yellow':'blue','alphabet')));
     }
 
     function renderWordPane(){
-      const wordPane=document.getElementById('wordPane');
-      const hint=wordPane.querySelector('.hint');
-      wordPane.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
-      hint.style.display = tiles.length>0 ? 'none' : 'block';
+      const wp=document.getElementById('wordPane');
+      wp.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
+      wp.querySelector('.hint').style.display = tiles.length>0 ? 'none' : 'block';
 
       tiles.forEach(tile=>{
         if(draggedGroup.find(t=>t.id===tile.id)) return;
@@ -302,133 +227,82 @@
         el.className=`tile ${tile.color} word-pane-tile`;
         el.textContent=tile.text;
         el.style.fontSize=getFontSize(tile.text);
-        el.style.left=tile.x+'px';
-        el.style.top=tile.y+'px';
+        el.style.left=tile.x+'px'; el.style.top=tile.y+'px';
         el.dataset.id=tile.id;
         el.addEventListener('pointerdown',(e)=>onPointerStart(e,tile.text,tile.color,tile.id));
-        wordPane.appendChild(el);
+        wp.appendChild(el);
       });
     }
 
-    // ====== SNAP (half-tile overlap detection) ======
-    function findNearbyTiles(dropX, dropY, excludeId){
-      const dragLeft=dropX, dragRight=dropX+TILE_SIZE, dragTop=dropY, dragBottom=dropY+TILE_SIZE;
-      const halfTile = TILE_SIZE / 2;
-      const candidates=[];
-
-      for(const tile of tiles){
-        if(tile.id===excludeId) continue;
-        const nbrLeft=tile.x, nbrRight=tile.x+TILE_SIZE, nbrTop=tile.y, nbrBottom=tile.y+TILE_SIZE;
-
-        const overlapY=Math.min(dragBottom,nbrBottom) - Math.max(dragTop,nbrTop);
-        if(overlapY<=0 || overlapY<MIN_VERTICAL_OVERLAP) continue;
-
-        const leftHalfDragStart = dragLeft, leftHalfDragEnd = dragLeft + halfTile;
-        const rightHalfNbrStart = nbrLeft + halfTile, rightHalfNbrEnd = nbrRight;
-        if(Math.max(leftHalfDragStart, rightHalfNbrStart) < Math.min(leftHalfDragEnd, rightHalfNbrEnd)){
-          candidates.push({ tile, edge:'right', snapX:nbrRight, snapY:tile.y });
-        }
-
-        const rightHalfDragStart = dragLeft + halfTile, rightHalfDragEnd = dragRight;
-        const leftHalfNbrStart = nbrLeft, leftHalfNbrEnd = nbrLeft + halfTile;
-        if(Math.max(rightHalfDragStart, leftHalfNbrStart) < Math.min(rightHalfDragEnd, leftHalfNbrEnd)){
-          candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY:tile.y });
-        }
+    // ====== PREDICTION & GHOSTS ======
+    function findSeamNear(dropX, dropY){
+      const row=tiles.filter(t=>sameRowY(t.y, dropY)).sort((a,b)=>a.x-b.x);
+      for(let i=0;i<row.length-1;i++){
+        const L=row[i], R=row[i+1];
+        if(!areFlush(L,R)) continue;
+        const seamX=L.x + TILE_SIZE;
+        if(Math.abs(dropX - seamX) <= SEAM_CAPTURE) return { left:L, right:R, seamX, rowY:L.y };
       }
+      return null;
+    }
 
-      candidates.sort((a,b)=>{
-        const aHasGroup = hasAdjacentTile(a.tile, a.edge);
-        const bHasGroup = hasAdjacentTile(b.tile, b.edge);
-        if(aHasGroup && !bHasGroup) return -1;
-        if(!aHasGroup && bHasGroup) return 1;
-        const ax=Math.abs(a.edge==='right'?(a.tile.x+TILE_SIZE)-dragLeft : a.tile.x - dragRight);
-        const bx=Math.abs(b.edge==='right'?(b.tile.x+TILE_SIZE)-dragLeft : b.tile.x - dragRight);
-        if(ax!==bx) return ax-bx;
-        return Math.abs(a.snapY - dropY) - Math.abs(b.snapY - dropY);
-      });
+    function findNearbyTiles(dropX, dropY, excludeId){
+      const candidates=[];
+      const dL=dropX, dR=dropX+TILE_SIZE, dT=dropY, dB=dropY+TILE_SIZE;
+      
+      for(const t of tiles){
+        if(t.id===excludeId) continue;
+        const tL=t.x, tR=t.x+TILE_SIZE, tT=t.y, tB=t.y+TILE_SIZE;
+        if(Math.min(dB,tB)-Math.max(dT,tT) < MIN_VERTICAL_OVERLAP) continue;
+
+        if(Math.max(dL, tL+TILE_SIZE/2) < Math.min(dL+TILE_SIZE/2, tR))
+          candidates.push({ tile:t, edge:'right', snapX:tR, snapY:t.y });
+        else if(Math.max(dL+TILE_SIZE/2, tL) < Math.min(dR, tL+TILE_SIZE/2))
+          candidates.push({ tile:t, edge:'left', snapX:tL-TILE_SIZE, snapY:t.y });
+      }
+      candidates.sort((a,b)=> Math.abs(a.snapY-dropY)-Math.abs(b.snapY-dropY));
       return candidates;
     }
 
-    function hasAdjacentTile(tile, snapEdge){
-      const checkSide = snapEdge === 'right' ? 'left' : 'right';
-      for(const other of tiles){
-        if(other.id === tile.id) continue;
-        if(!sameRowY(other.y, tile.y)) continue;
-        if(checkSide === 'left'){ if(areFlush(other, tile)) return true; } 
-        else { if(areFlush(tile, other)) return true; }
-      }
-      return false;
-    }
-
-    // ====== PREDICTION & GHOSTS (NEW) ======
     function calculateDropTarget(dropX, dropY, sourceId = null){
-      // 1. Check Seam
       const seam = findSeamNear(dropX, dropY);
       if(seam) return { type: 'seam', x: seam.seamX, y: seam.rowY, seam };
-      
-      // 2. Check Snap
       const nearby = findNearbyTiles(dropX, dropY, sourceId);
       if(nearby.length > 0) return { type: 'snap', x: nearby[0].snapX, y: nearby[0].snapY, tile: nearby[0].tile };
-
-      // 3. Free Drop
       return { type: 'free', x: dropX, y: dropY };
     }
 
     function updateGhostVisual(mouseX, mouseY){
       clearGhostVisual();
       const paneRect = document.getElementById('wordPane').getBoundingClientRect();
-      
-      // Are we dragging inside the pane?
       if(mouseX < paneRect.left || mouseX > paneRect.right || mouseY < paneRect.top || mouseY > paneRect.bottom) return;
 
-      // Current drop position relative to pane
       let rawDropX = mouseX - paneRect.left - dragOffset.x;
       let rawDropY = mouseY - paneRect.top - dragOffset.y;
-      
-      // Predict result
-      let prediction;
-      let offsetX = 0, offsetY = 0;
+      let prediction, offsetX = 0, offsetY = 0;
 
       if(draggedTile.sourceType === 'tray'){
         prediction = calculateDropTarget(rawDropX, rawDropY, null);
       } else {
-        // For groups, we predict based on the "main" dragged tile
         const main = draggedGroup.find(t => t.id === draggedTile.id);
-        const mainDiffX = draggedTile.startX - main.x;
-        const mainDiffY = draggedTile.startY - main.y;
-        
-        const mainDropX = mouseX - paneRect.left - mainDiffX;
-        const mainDropY = mouseY - paneRect.top - mainDiffY;
-        
+        const mainDropX = mouseX - paneRect.left - (draggedTile.startX - main.x);
+        const mainDropY = mouseY - paneRect.top - (draggedTile.startY - main.y);
         prediction = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
-        
-        // Calculate shift needed for the group based on prediction
         offsetX = prediction.x - mainDropX;
         offsetY = prediction.y - mainDropY;
       }
 
-      // Draw Ghosts
       const wordPane = document.getElementById('wordPane');
-      
       if(draggedGroup.length > 0){
-        // Render ghost for every tile in group
         draggedGroup.forEach(t => {
-           // relative offset within group
-           const relX = t.x - draggedGroup[0].x; // simple logic assumes first tile is anchor, better to use 'main' logic below
-           
-           // Better: calculate t's offset from the 'main' tile used for prediction
            const main = draggedGroup.find(dt => dt.id === draggedTile.id);
-           const tOffX = t.x - main.x;
-           const tOffY = t.y - main.y;
-
            const ghost = document.createElement('div');
            ghost.className = 'ghost-tile';
-           ghost.style.left = (prediction.x + tOffX) + 'px';
-           ghost.style.top = (prediction.y + tOffY) + 'px';
+           ghost.style.left = (prediction.x + (t.x - main.x)) + 'px';
+           ghost.style.top = (prediction.y + (t.y - main.y)) + 'px';
            wordPane.appendChild(ghost);
         });
       } else {
-        // Single tile ghost
         const ghost = document.createElement('div');
         ghost.className = 'ghost-tile';
         ghost.style.left = prediction.x + 'px';
@@ -437,38 +311,58 @@
       }
     }
 
-    function clearGhostVisual(){
-      document.querySelectorAll('.ghost-tile').forEach(el => el.remove());
+    function clearGhostVisual(){ document.querySelectorAll('.ghost-tile').forEach(el => el.remove()); }
+
+    // ====== SPEAK LOGIC ======
+    function speakText(text){
+      if(!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.8;
+      window.speechSynthesis.speak(u);
     }
 
-    // ====== TEXT TO SPEECH (NEW) ======
     function speakGroup(sourceId){
       const tile = tiles.find(t => t.id == sourceId);
       if(!tile) return;
-
       const chain = getGroupChain(tile);
-      // Construct word
       const word = chain.map(t => t.text).join('');
-      
-      if('speechSynthesis' in window){
-        window.speechSynthesis.cancel(); // stop previous
-        const u = new SpeechSynthesisUtterance(word);
-        u.rate = 0.8; // slightly slower for learners
-        window.speechSynthesis.speak(u);
-        
-        // visual feedback
-        chain.forEach(t => {
-          const el = document.querySelector(`.word-pane-tile[data-id="${t.id}"]`);
-          if(el){
-            el.style.transition = 'transform 0.1s';
-            el.style.transform = 'scale(1.1)';
-            setTimeout(()=>el.style.transform='scale(1)', 200);
-          }
-        });
-      }
+      speakText(word);
+      // Visual feedback
+      chain.forEach(t => {
+        const el = document.querySelector(`.word-pane-tile[data-id="${t.id}"]`);
+        if(el) { el.style.transform = 'scale(1.1)'; setTimeout(()=>el.style.transform='scale(1)', 200); }
+      });
     }
 
-    // ====== POINTERS / DRAG ======
+    function speakAllBoard(){
+      if(tiles.length === 0) return;
+      // Sort all tiles by Y (rows) then X (cols)
+      const sorted = [...tiles].sort((a,b) => {
+         if(!sameRowY(a.y, b.y)) return a.y - b.y;
+         return a.x - b.x;
+      });
+
+      // Group them into words (groups)
+      const words = [];
+      let i=0;
+      while(i < sorted.length){
+        let wordText = sorted[i].text;
+        let j=i+1;
+        while(j < sorted.length && sameRowY(sorted[j-1].y, sorted[j].y) && areFlush(sorted[j-1], sorted[j])){
+          wordText += sorted[j].text;
+          j++;
+        }
+        words.push(wordText);
+        i=j;
+      }
+      
+      // Speak as a sentence
+      const sentence = words.join(' . '); // pause between words
+      speakText(sentence);
+    }
+
+    // ====== POINTERS ======
     function onPointerStart(e,text,color,source){
       if(e.isPrimary===false) return;
       e.preventDefault(); e.stopPropagation();
@@ -476,11 +370,10 @@
       const targetRect=e.currentTarget.getBoundingClientRect();
       const startX=e.clientX, startY=e.clientY, tStart=performance.now();
 
-      gesture={ startX, startY, tStart, moved:false, lastX:startX, lastY:startY, source, text, color, pointerType:e.pointerType };
+      gesture={ startX, startY, tStart, moved:false, lastX:startX, lastY:startY, source, text, color };
       
       const onMove=(ev)=>{
         const dx=ev.clientX - gesture.startX, dy=ev.clientY - gesture.startY;
-        gesture.lastX=ev.clientX; gesture.lastY=ev.clientY;
         if(!gesture.moved && (Math.abs(dx)>dragThresholdFor(ev) || Math.abs(dy)>dragThresholdFor(ev))){
           gesture.moved=true; beginDrag(gesture, targetRect, dx, dy);
         }
@@ -491,10 +384,9 @@
         const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
         
         if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
-          // HANDLE TAP / DOUBLE TAP
+          // DOUBLE TAP LOGIC
           if(gesture.source !== 'tray' && gesture.source !== 'alphabet'){
              const now = Date.now();
-             // Check if double tap (same ID, < 500ms)
              if(lastTapId === gesture.source && (now - lastTapTime) < 500){
                 speakGroup(gesture.source);
                 lastTapId = null;
@@ -514,25 +406,20 @@
       document.addEventListener('pointercancel',onEnd,{passive:false});
     }
 
-    function beginDrag(g, targetRect, dx=0, dy=0){
-      const startX=g.startX, startY=g.startY, source=g.source;
-
-      if(source==='tray' || source==='alphabet'){
+    function beginDrag(g, targetRect, dx, dy){
+      const startX=g.startX, startY=g.startY;
+      if(g.source==='tray' || g.source==='alphabet'){
         draggedTile={ text:g.text, color:g.color, x:startX, y:startY, sourceType:'tray', startX, startY };
         draggedGroup=[]; dragStartRowY=null;
       } else {
-        const paneTile=tiles.find(t=>t.id===source); if(!paneTile) return;
+        const paneTile=tiles.find(t=>t.id===g.source); if(!paneTile) return;
         const chain=getGroupChain(paneTile);
         const idx=chain.findIndex(t=>t.id===paneTile.id);
-        const horizontal=Math.abs(dx) >= Math.abs(dy);
-        if(!horizontal) draggedGroup=[paneTile];
-        else if(dx<0)   draggedGroup=chain.slice(0, idx+1);
-        else            draggedGroup=chain.slice(idx);
-
+        draggedGroup = (Math.abs(dx)>=Math.abs(dy)) ? (dx<0 ? chain.slice(0,idx+1) : chain.slice(idx)) : [paneTile];
         draggedTile={ ...paneTile, x:startX, y:startY, sourceType:'pane', startX, startY };
         dragStartRowY=paneTile.y;
       }
-      dragOffset={ x:startX - targetRect.left, y:startY - targetRect.top };
+      dragOffset={ x:startX-targetRect.left, y:startY-targetRect.top };
       updateDragVisual();
     }
 
@@ -541,142 +428,102 @@
       e.preventDefault();
       draggedTile.x=e.clientX; draggedTile.y=e.clientY;
       updateDragVisual();
-      updateGhostVisual(e.clientX, e.clientY); // Show ghost
+      updateGhostVisual(e.clientX, e.clientY);
     }
 
     function handleEnd(e){
-      clearGhostVisual(); // Clear ghost on drop
+      clearGhostVisual();
       if(!draggedTile) return;
-      e.preventDefault();
-
-      const wordPane=document.getElementById('wordPane');
-      const paneRect=wordPane.getBoundingClientRect();
-      const inside = e.clientX>=paneRect.left && e.clientX<=paneRect.right && e.clientY>=paneRect.top && e.clientY<=paneRect.bottom;
-
+      const wp=document.getElementById('wordPane'), r=wp.getBoundingClientRect();
+      const inside = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+      
       if(inside){
-        let dropX=e.clientX - paneRect.left - dragOffset.x;
-        let dropY=e.clientY - paneRect.top  - dragOffset.y;
+        let dropX=e.clientX - r.left - dragOffset.x;
+        let dropY=e.clientY - r.top  - dragOffset.y;
 
-        // --- REFACTORED TO USE PREDICTION LOGIC ---
         if(draggedTile.sourceType==='tray'){
            const target = calculateDropTarget(dropX, dropY);
-           if(target.type === 'seam'){
-             insertAtSeam({text:draggedTile.text,color:draggedTile.color}, target.seam);
-             finish(); return;
+           if(target.type === 'seam'){ insertAtSeam(draggedTile, target.seam); }
+           else {
+             tiles.push({ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:target.x, y:target.y, groupId:(target.tile?target.tile.groupId||target.tile.id:null) });
+             recomputeGroupsAround(target.y);
            }
-           
-           const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:target.x, y:target.y, groupId: (target.tile ? target.tile.groupId || target.tile.id : null) };
-           tiles.push(newTile);
-           recomputeGroupsAround(target.y);
-        
         } else {
-          // Moving existing tiles
-          if(draggedGroup.length>0){
-            // Handle special case: dragging single tile into seam
-            if(draggedGroup.length===1){
-              const seam=findSeamNear(dropX, dropY);
-              if(seam){
-                const only=draggedGroup[0]; const originY=only.y;
-                tiles=tiles.filter(t=>t.id!==only.id);
-                if(dragStartRowY!==null) recomputeGroupsAround(originY);
-                insertAtSeam({text:only.text,color:only.color}, seam);
-                finish(); return;
-              }
-            }
-            
-            // Standard move (snap or free)
-            const main=draggedGroup.find(gt=>gt.id===draggedTile.id);
-            const mainDropX=e.clientX - paneRect.left - (draggedTile.startX - main.x);
-            const mainDropY=e.clientY - paneRect.top  - (draggedTile.startY - main.y);
-            
-            const target = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
-            const snapAdjX = target.x - mainDropX;
-            const snapAdjY = target.y - mainDropY;
-            const targetGroupId = (target.type === 'snap') ? (target.tile.groupId || target.tile.id) : null;
-
-            tiles=tiles.map(t=>{
-              const inGroup=draggedGroup.some(gt=>gt.id===t.id);
-              if(!inGroup) return t;
-              const before=draggedGroup.find(gt=>gt.id===draggedTile.id);
-              const offX=t.x - before.x, offY=t.y - before.y;
-              return { ...t, x:mainDropX + offX + snapAdjX, y:mainDropY + offY + snapAdjY, groupId:targetGroupId || null };
-            });
-            
-            if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
-            recomputeGroupsAround(target.y);
-          }
+           // Moving existing
+           const main=draggedGroup.find(t=>t.id===draggedTile.id);
+           const mainDropX=e.clientX - r.left - (draggedTile.startX - main.x);
+           const mainDropY=e.clientY - r.top - (draggedTile.startY - main.y);
+           
+           // Single tile into seam check
+           if(draggedGroup.length===1 && findSeamNear(dropX,dropY)){
+             const seam=findSeamNear(dropX,dropY);
+             tiles=tiles.filter(t=>t.id!==draggedGroup[0].id);
+             if(dragStartRowY!==null) recomputeGroupsAround(draggedGroup[0].y);
+             insertAtSeam(draggedGroup[0], seam);
+           } else {
+             const target = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
+             const dx=target.x - mainDropX, dy=target.y - mainDropY;
+             const gid=(target.type==='snap')?(target.tile.groupId||target.tile.id):null;
+             
+             tiles=tiles.map(t=>{
+               if(!draggedGroup.some(dt=>dt.id===t.id)) return t;
+               const relX=t.x - main.x, relY=t.y - main.y;
+               return { ...t, x:target.x+relX, y:target.y+relY, groupId:gid };
+             });
+             if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
+             recomputeGroupsAround(target.y);
+           }
         }
       } else if(draggedTile.sourceType==='pane'){
-        // Delete if dragged out
-        if(draggedGroup.length>0){
-          const ids=new Set(draggedGroup.map(t=>t.id));
-          const originY=draggedGroup[0].y;
-          tiles=tiles.filter(t=>!ids.has(t.id));
-          if(dragStartRowY!==null) recomputeGroupsAround(originY);
-        }
+        const ids=new Set(draggedGroup.map(t=>t.id));
+        const oy=draggedGroup[0].y;
+        tiles=tiles.filter(t=>!ids.has(t.id));
+        recomputeGroupsAround(oy);
       }
-      finish();
-
-      function finish(){ draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); }
+      draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane();
     }
 
-    // ====== DRAG VISUALS ======
+    function insertAtSeam(data, seam){
+      const rightSide=tiles.filter(t=>sameRowY(t.y,seam.rowY) && t.x>=seam.right.x).sort((a,b)=>a.x-b.x);
+      rightSide.forEach(t=>t.x+=TILE_SIZE);
+      tiles.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:seam.right.x-TILE_SIZE, y:seam.rowY, groupId:null });
+      recomputeGroupsAround(seam.rowY);
+    }
+
     function updateDragVisual(){
       document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove());
       if(!draggedTile) return;
-      const paneRect=document.getElementById('wordPane').getBoundingClientRect();
-
-      if(draggedGroup.length>0){
-        const dx=draggedTile.x - draggedTile.startX, dy=draggedTile.y - draggedTile.startY;
-        draggedGroup.forEach(t=>{
-          const g=document.createElement('div');
-          g.className=`tile ${t.color} dragging`;
-          g.textContent=t.text;
-          g.style.fontSize=getFontSize(t.text);
-          const gx=t.x + dx + paneRect.left, gy=t.y + dy + paneRect.top;
-          g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
-          g.dataset.dragging='true';
-          document.body.appendChild(g);
-        });
-      } else {
+      const wp=document.getElementById('wordPane').getBoundingClientRect();
+      const list = draggedGroup.length ? draggedGroup : [draggedTile];
+      const dx=draggedTile.x - (draggedGroup.length?draggedTile.startX:dragOffset.x+wp.left);
+      const dy=draggedTile.y - (draggedGroup.length?draggedTile.startY:dragOffset.y+wp.top);
+      
+      list.forEach(t=>{
         const g=document.createElement('div');
-        g.className=`tile ${draggedTile.color} dragging`;
-        g.textContent=draggedTile.text;
-        g.style.fontSize=getFontSize(draggedTile.text);
-        const gx=draggedTile.x - dragOffset.x, gy=draggedTile.y - dragOffset.y;
-        g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
+        g.className=`tile ${t.color} dragging`;
+        g.textContent=t.text;
+        g.style.fontSize=getFontSize(t.text);
+        if(draggedGroup.length){
+          g.style.transform=`translate3d(${t.x+dx}px, ${t.y+dy}px, 0)`;
+        } else {
+          g.style.transform=`translate3d(${dx}px, ${dy}px, 0)`;
+        }
         g.dataset.dragging='true';
         document.body.appendChild(g);
-      }
-    }
-    function clearDragVisual(){ document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove()); }
-
-    // ====== DRAWER TAB SWITCHING ======
-    function switchDrawer(drawerName){
-      activeDrawer = drawerName;
-      document.querySelectorAll('.drawer-tab').forEach(tab => {
-        if(tab.dataset.drawer === drawerName){
-          tab.classList.add('active');
-        } else {
-          tab.classList.remove('active');
-        }
       });
-      renderActiveDrawer();
     }
 
     // ====== BOOT ======
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
-    document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
+    document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; renderWordPane(); });
+    document.getElementById('speakButton').addEventListener('click', speakAllBoard);
+    
     document.querySelectorAll('.drawer-tab').forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        e.preventDefault();
-        switchDrawer(tab.dataset.drawer);
-      });
+      tab.addEventListener('click', (e) => { e.preventDefault(); switchDrawer(tab.dataset.drawer); });
     });
+    function switchDrawer(d){ activeDrawer=d; document.querySelectorAll('.drawer-tab').forEach(t=>t.classList.toggle('active', t.dataset.drawer===d)); renderActiveDrawer(); }
 
-    renderAlphabet();
-    renderTray();
-    renderWordPane();
+    renderAlphabet(); renderTray(); renderWordPane();
   </script>
 </body>
 </html>
