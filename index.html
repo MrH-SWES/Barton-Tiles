@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board</title>
+  <title>Reading Tile Board + TTS & Ghosts</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -19,12 +19,25 @@
     /* workspace leaves room for tile dock (max 24vh) */
     #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
+    .sub-hint{display:block;font-size:14px;margin-top:8px;opacity:0.7}
 
     .tile{width:52px;height:52px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
     .tile:active{cursor:grabbing}
     .tile.blue{background:#60a5fa}.tile.yellow{background:#fbbf24}.tile.red{background:#f87171}.tile.green{background:#4ade80}.tile.orange{background:#fb923c}.tile.purple{background:#a78bfa}
+    
     .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
     .word-pane-tile{position:absolute}
+
+    /* --- NEW: Ghost Tile Style --- */
+    .ghost-tile {
+      position: absolute;
+      width: 52px; height: 52px;
+      border: 2px dashed #6b7280;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.3);
+      z-index: 5;
+      pointer-events: none;
+    }
 
     #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
@@ -82,7 +95,10 @@
 <body>
   <div id="app">
     <div id="wordPane">
-      <div class="hint">Drag tiles here to build words.</div>
+      <div class="hint">
+        Drag tiles here to build words.
+        <span class="sub-hint">Double-tap a word to hear it! 🔊</span>
+      </div>
       <div id="controls">
         <select id="lessonSelect" class="btn secondary">
           <option value="2">Book 2</option><option value="3">Book 3</option><option value="4">Book 4</option>
@@ -120,8 +136,6 @@
   <script>
     // ====== CONFIG ======
     const TILE_SIZE = 52;
-
-    // touch-friendly thresholds
     const SNAP_DISTANCE = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 16 : 10;
     const SEAM_CAPTURE  = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 22 : 14;
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
@@ -144,12 +158,15 @@
 
     // ====== STATE ======
     let baseTiles=[], redTiles=[], greenTiles=[], orangeTiles=[], purpleTiles=[];
-    let blueConsonants=[], yellowVowels=[]; // separate consonants and vowels
+    let blueConsonants=[], yellowVowels=[]; 
     let tiles=[]; // tiles on the pane
-    let activeDrawer='consonants'; // current drawer tab
+    let activeDrawer='consonants'; 
 
     // drag state
     let draggedTile=null, draggedGroup=[], dragOffset={x:0,y:0}, gesture=null, dragStartRowY=null;
+    
+    // tts double-tap state
+    let lastTapId = null, lastTapTime = 0;
 
     // ====== UTIL ======
     function getFontSize(text){
@@ -220,8 +237,6 @@
 
     function renderTray(){
       const lvl=parseInt(document.getElementById('lessonSelect').value,10);
-
-      // collect all tiles
       let allBlue=[], allYellow=[];
       redTiles=[]; greenTiles=[]; orangeTiles=[]; purpleTiles=[];
 
@@ -235,53 +250,30 @@
         if(L.purple) purpleTiles.push(...L.purple);
       }
 
-      // sort and organize by category
       blueConsonants=getUniqueSorted(allBlue);
       yellowVowels=getUniqueSorted(allYellow);
       redTiles=getUniqueSorted(redTiles);
       greenTiles=getUniqueSorted(greenTiles);
       orangeTiles=getUniqueSorted(orangeTiles);
       purpleTiles=getUniqueSorted(purpleTiles);
-
-      // render only the active drawer
       renderActiveDrawer();
     }
 
     function renderActiveDrawer(){
       const baseRow = document.getElementById('baseRow');
       baseRow.innerHTML = '';
-
       let tilesToRender = [];
       let color = 'blue';
 
       switch(activeDrawer){
-        case 'consonants':
-          tilesToRender = blueConsonants.filter(c => c.length > 1); // exclude single letters
-          color = 'blue';
-          break;
-        case 'vowels':
-          tilesToRender = yellowVowels.filter(v => v.length > 1); // exclude single letters
-          color = 'yellow';
-          break;
-        case 'units':
-          tilesToRender = redTiles;
-          color = 'red';
-          break;
-        case 'endings':
-          tilesToRender = greenTiles;
-          color = 'green';
-          break;
-        case 'prefixes':
-          tilesToRender = orangeTiles;
-          color = 'orange';
-          break;
-        case 'roots':
-          tilesToRender = purpleTiles;
-          color = 'purple';
-          break;
+        case 'consonants': tilesToRender = blueConsonants.filter(c => c.length > 1); color = 'blue'; break;
+        case 'vowels': tilesToRender = yellowVowels.filter(v => v.length > 1); color = 'yellow'; break;
+        case 'units': tilesToRender = redTiles; color = 'red'; break;
+        case 'endings': tilesToRender = greenTiles; color = 'green'; break;
+        case 'prefixes': tilesToRender = orangeTiles; color = 'orange'; break;
+        case 'roots': tilesToRender = purpleTiles; color = 'purple'; break;
       }
 
-      // render tiles for active drawer
       tilesToRender.forEach(txt => {
         baseRow.appendChild(createTile(txt, color, 'tray'));
       });
@@ -290,22 +282,12 @@
     function renderAlphabet(){
       const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
       const vowels = new Set(['a', 'e', 'i', 'o', 'u']);
-
-      // First row: a-m (13 letters)
       const row1 = document.getElementById('alphabetRow1');
-      row1.innerHTML = '';
-      alphabet.slice(0, 13).forEach(letter => {
-        const color = vowels.has(letter) ? 'yellow' : 'blue';
-        row1.appendChild(createTile(letter, color, 'alphabet'));
-      });
-
-      // Second row: n-z (13 letters)
       const row2 = document.getElementById('alphabetRow2');
-      row2.innerHTML = '';
-      alphabet.slice(13, 26).forEach(letter => {
-        const color = vowels.has(letter) ? 'yellow' : 'blue';
-        row2.appendChild(createTile(letter, color, 'alphabet'));
-      });
+      row1.innerHTML = ''; row2.innerHTML = '';
+
+      alphabet.slice(0, 13).forEach(letter => row1.appendChild(createTile(letter, vowels.has(letter) ? 'yellow' : 'blue', 'alphabet')));
+      alphabet.slice(13, 26).forEach(letter => row2.appendChild(createTile(letter, vowels.has(letter) ? 'yellow' : 'blue', 'alphabet')));
     }
 
     function renderWordPane(){
@@ -338,72 +320,152 @@
         if(tile.id===excludeId) continue;
         const nbrLeft=tile.x, nbrRight=tile.x+TILE_SIZE, nbrTop=tile.y, nbrBottom=tile.y+TILE_SIZE;
 
-        // Check vertical overlap first
         const overlapY=Math.min(dragBottom,nbrBottom) - Math.max(dragTop,nbrTop);
         if(overlapY<=0 || overlapY<MIN_VERTICAL_OVERLAP) continue;
 
-        // Check if left half of drag tile overlaps with right half of stationary tile
-        const leftHalfDragStart = dragLeft;
-        const leftHalfDragEnd = dragLeft + halfTile;
-        const rightHalfNbrStart = nbrLeft + halfTile;
-        const rightHalfNbrEnd = nbrRight;
-
+        const leftHalfDragStart = dragLeft, leftHalfDragEnd = dragLeft + halfTile;
+        const rightHalfNbrStart = nbrLeft + halfTile, rightHalfNbrEnd = nbrRight;
         if(Math.max(leftHalfDragStart, rightHalfNbrStart) < Math.min(leftHalfDragEnd, rightHalfNbrEnd)){
-          // Snap to the right side of the stationary tile
           candidates.push({ tile, edge:'right', snapX:nbrRight, snapY:tile.y });
         }
 
-        // Check if right half of drag tile overlaps with left half of stationary tile
-        const rightHalfDragStart = dragLeft + halfTile;
-        const rightHalfDragEnd = dragRight;
-        const leftHalfNbrStart = nbrLeft;
-        const leftHalfNbrEnd = nbrLeft + halfTile;
-
+        const rightHalfDragStart = dragLeft + halfTile, rightHalfDragEnd = dragRight;
+        const leftHalfNbrStart = nbrLeft, leftHalfNbrEnd = nbrLeft + halfTile;
         if(Math.max(rightHalfDragStart, leftHalfNbrStart) < Math.min(rightHalfDragEnd, leftHalfNbrEnd)){
-          // Snap to the left side of the stationary tile
           candidates.push({ tile, edge:'left', snapX:nbrLeft - TILE_SIZE, snapY:tile.y });
         }
       }
 
-      // Sort to prioritize snapping to groups (contiguous letter units)
       candidates.sort((a,b)=>{
-        // Check if tiles are part of groups (have neighbors)
         const aHasGroup = hasAdjacentTile(a.tile, a.edge);
         const bHasGroup = hasAdjacentTile(b.tile, b.edge);
-
-        // Strongly prefer snapping to tiles that are part of groups
         if(aHasGroup && !bHasGroup) return -1;
         if(!aHasGroup && bHasGroup) return 1;
-
-        // If both have groups or both don't, sort by distance
         const ax=Math.abs(a.edge==='right'?(a.tile.x+TILE_SIZE)-dragLeft : a.tile.x - dragRight);
         const bx=Math.abs(b.edge==='right'?(b.tile.x+TILE_SIZE)-dragLeft : b.tile.x - dragRight);
         if(ax!==bx) return ax-bx;
-        const ay=Math.abs(a.snapY - dropY), by=Math.abs(b.snapY - dropY);
-        return ay - by;
+        return Math.abs(a.snapY - dropY) - Math.abs(b.snapY - dropY);
       });
       return candidates;
     }
 
-    // Helper to check if a tile has an adjacent tile on the opposite side
     function hasAdjacentTile(tile, snapEdge){
-      // If snapping to the right edge, check if there's a tile to the tile's left
-      // If snapping to the left edge, check if there's a tile to the tile's right
       const checkSide = snapEdge === 'right' ? 'left' : 'right';
-
       for(const other of tiles){
         if(other.id === tile.id) continue;
         if(!sameRowY(other.y, tile.y)) continue;
-
-        if(checkSide === 'left'){
-          // Check if other is flush to the left of tile
-          if(areFlush(other, tile)) return true;
-        } else {
-          // Check if other is flush to the right of tile
-          if(areFlush(tile, other)) return true;
-        }
+        if(checkSide === 'left'){ if(areFlush(other, tile)) return true; } 
+        else { if(areFlush(tile, other)) return true; }
       }
       return false;
+    }
+
+    // ====== PREDICTION & GHOSTS (NEW) ======
+    function calculateDropTarget(dropX, dropY, sourceId = null){
+      // 1. Check Seam
+      const seam = findSeamNear(dropX, dropY);
+      if(seam) return { type: 'seam', x: seam.seamX, y: seam.rowY, seam };
+      
+      // 2. Check Snap
+      const nearby = findNearbyTiles(dropX, dropY, sourceId);
+      if(nearby.length > 0) return { type: 'snap', x: nearby[0].snapX, y: nearby[0].snapY, tile: nearby[0].tile };
+
+      // 3. Free Drop
+      return { type: 'free', x: dropX, y: dropY };
+    }
+
+    function updateGhostVisual(mouseX, mouseY){
+      clearGhostVisual();
+      const paneRect = document.getElementById('wordPane').getBoundingClientRect();
+      
+      // Are we dragging inside the pane?
+      if(mouseX < paneRect.left || mouseX > paneRect.right || mouseY < paneRect.top || mouseY > paneRect.bottom) return;
+
+      // Current drop position relative to pane
+      let rawDropX = mouseX - paneRect.left - dragOffset.x;
+      let rawDropY = mouseY - paneRect.top - dragOffset.y;
+      
+      // Predict result
+      let prediction;
+      let offsetX = 0, offsetY = 0;
+
+      if(draggedTile.sourceType === 'tray'){
+        prediction = calculateDropTarget(rawDropX, rawDropY, null);
+      } else {
+        // For groups, we predict based on the "main" dragged tile
+        const main = draggedGroup.find(t => t.id === draggedTile.id);
+        const mainDiffX = draggedTile.startX - main.x;
+        const mainDiffY = draggedTile.startY - main.y;
+        
+        const mainDropX = mouseX - paneRect.left - mainDiffX;
+        const mainDropY = mouseY - paneRect.top - mainDiffY;
+        
+        prediction = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
+        
+        // Calculate shift needed for the group based on prediction
+        offsetX = prediction.x - mainDropX;
+        offsetY = prediction.y - mainDropY;
+      }
+
+      // Draw Ghosts
+      const wordPane = document.getElementById('wordPane');
+      
+      if(draggedGroup.length > 0){
+        // Render ghost for every tile in group
+        draggedGroup.forEach(t => {
+           // relative offset within group
+           const relX = t.x - draggedGroup[0].x; // simple logic assumes first tile is anchor, better to use 'main' logic below
+           
+           // Better: calculate t's offset from the 'main' tile used for prediction
+           const main = draggedGroup.find(dt => dt.id === draggedTile.id);
+           const tOffX = t.x - main.x;
+           const tOffY = t.y - main.y;
+
+           const ghost = document.createElement('div');
+           ghost.className = 'ghost-tile';
+           ghost.style.left = (prediction.x + tOffX) + 'px';
+           ghost.style.top = (prediction.y + tOffY) + 'px';
+           wordPane.appendChild(ghost);
+        });
+      } else {
+        // Single tile ghost
+        const ghost = document.createElement('div');
+        ghost.className = 'ghost-tile';
+        ghost.style.left = prediction.x + 'px';
+        ghost.style.top = prediction.y + 'px';
+        wordPane.appendChild(ghost);
+      }
+    }
+
+    function clearGhostVisual(){
+      document.querySelectorAll('.ghost-tile').forEach(el => el.remove());
+    }
+
+    // ====== TEXT TO SPEECH (NEW) ======
+    function speakGroup(sourceId){
+      const tile = tiles.find(t => t.id == sourceId);
+      if(!tile) return;
+
+      const chain = getGroupChain(tile);
+      // Construct word
+      const word = chain.map(t => t.text).join('');
+      
+      if('speechSynthesis' in window){
+        window.speechSynthesis.cancel(); // stop previous
+        const u = new SpeechSynthesisUtterance(word);
+        u.rate = 0.8; // slightly slower for learners
+        window.speechSynthesis.speak(u);
+        
+        // visual feedback
+        chain.forEach(t => {
+          const el = document.querySelector(`.word-pane-tile[data-id="${t.id}"]`);
+          if(el){
+            el.style.transition = 'transform 0.1s';
+            el.style.transform = 'scale(1.1)';
+            setTimeout(()=>el.style.transform='scale(1)', 200);
+          }
+        });
+      }
     }
 
     // ====== POINTERS / DRAG ======
@@ -415,6 +477,7 @@
       const startX=e.clientX, startY=e.clientY, tStart=performance.now();
 
       gesture={ startX, startY, tStart, moved:false, lastX:startX, lastY:startY, source, text, color, pointerType:e.pointerType };
+      
       const onMove=(ev)=>{
         const dx=ev.clientX - gesture.startX, dy=ev.clientY - gesture.startY;
         gesture.lastX=ev.clientX; gesture.lastY=ev.clientY;
@@ -426,8 +489,20 @@
       const onEnd=(ev)=>{
         const dt=performance.now()-gesture.tStart;
         const totalMove=Math.hypot(ev.clientX-gesture.startX, ev.clientY-gesture.startY);
+        
         if(!gesture.moved && dt<=TAP_MAX_TIME_MS && totalMove<=TAP_MAX_MOVE_PX){
-          // This was a tap - no action needed
+          // HANDLE TAP / DOUBLE TAP
+          if(gesture.source !== 'tray' && gesture.source !== 'alphabet'){
+             const now = Date.now();
+             // Check if double tap (same ID, < 500ms)
+             if(lastTapId === gesture.source && (now - lastTapTime) < 500){
+                speakGroup(gesture.source);
+                lastTapId = null;
+             } else {
+                lastTapId = gesture.source;
+                lastTapTime = now;
+             }
+          }
           cleanup();
           return;
         }
@@ -466,33 +541,38 @@
       e.preventDefault();
       draggedTile.x=e.clientX; draggedTile.y=e.clientY;
       updateDragVisual();
+      updateGhostVisual(e.clientX, e.clientY); // Show ghost
     }
 
     function handleEnd(e){
+      clearGhostVisual(); // Clear ghost on drop
       if(!draggedTile) return;
       e.preventDefault();
 
       const wordPane=document.getElementById('wordPane');
       const paneRect=wordPane.getBoundingClientRect();
-
       const inside = e.clientX>=paneRect.left && e.clientX<=paneRect.right && e.clientY>=paneRect.top && e.clientY<=paneRect.bottom;
 
       if(inside){
         let dropX=e.clientX - paneRect.left - dragOffset.x;
         let dropY=e.clientY - paneRect.top  - dragOffset.y;
 
+        // --- REFACTORED TO USE PREDICTION LOGIC ---
         if(draggedTile.sourceType==='tray'){
-          const seam=findSeamNear(dropX, dropY);
-          if(seam){ insertAtSeam({text:draggedTile.text,color:draggedTile.color}, seam); finish(); return; }
-
-          const nearby=findNearbyTiles(dropX, dropY, null);
-          let finalX=dropX, finalY=dropY, groupId=null;
-          if(nearby.length>0){ const c=nearby[0]; finalX=c.snapX; finalY=c.snapY; groupId=c.tile.groupId || c.tile.id; }
-          const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:finalX, y:finalY, groupId };
-          tiles.push(newTile);
-          recomputeGroupsAround(finalY);
+           const target = calculateDropTarget(dropX, dropY);
+           if(target.type === 'seam'){
+             insertAtSeam({text:draggedTile.text,color:draggedTile.color}, target.seam);
+             finish(); return;
+           }
+           
+           const newTile={ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:target.x, y:target.y, groupId: (target.tile ? target.tile.groupId || target.tile.id : null) };
+           tiles.push(newTile);
+           recomputeGroupsAround(target.y);
+        
         } else {
+          // Moving existing tiles
           if(draggedGroup.length>0){
+            // Handle special case: dragging single tile into seam
             if(draggedGroup.length===1){
               const seam=findSeamNear(dropX, dropY);
               if(seam){
@@ -503,26 +583,31 @@
                 finish(); return;
               }
             }
+            
+            // Standard move (snap or free)
             const main=draggedGroup.find(gt=>gt.id===draggedTile.id);
             const mainDropX=e.clientX - paneRect.left - (draggedTile.startX - main.x);
             const mainDropY=e.clientY - paneRect.top  - (draggedTile.startY - main.y);
-
-            const nearMain=findNearbyTiles(mainDropX, mainDropY, draggedTile.id);
-            let snapAdj={dx:0,dy:0,groupId:null};
-            if(nearMain.length>0){ const c=nearMain[0]; snapAdj.dx=c.snapX-mainDropX; snapAdj.dy=c.snapY-mainDropY; snapAdj.groupId=c.tile.groupId||c.tile.id; }
+            
+            const target = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
+            const snapAdjX = target.x - mainDropX;
+            const snapAdjY = target.y - mainDropY;
+            const targetGroupId = (target.type === 'snap') ? (target.tile.groupId || target.tile.id) : null;
 
             tiles=tiles.map(t=>{
               const inGroup=draggedGroup.some(gt=>gt.id===t.id);
               if(!inGroup) return t;
               const before=draggedGroup.find(gt=>gt.id===draggedTile.id);
               const offX=t.x - before.x, offY=t.y - before.y;
-              return { ...t, x:mainDropX + offX + snapAdj.dx, y:mainDropY + offY + snapAdj.dy, groupId:snapAdj.groupId||null };
+              return { ...t, x:mainDropX + offX + snapAdjX, y:mainDropY + offY + snapAdjY, groupId:targetGroupId || null };
             });
+            
             if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
-            recomputeGroupsAround(mainDropY + snapAdj.dy);
+            recomputeGroupsAround(target.y);
           }
         }
       } else if(draggedTile.sourceType==='pane'){
+        // Delete if dragged out
         if(draggedGroup.length>0){
           const ids=new Set(draggedGroup.map(t=>t.id));
           const originY=draggedGroup[0].y;
@@ -537,7 +622,7 @@
 
     // ====== DRAG VISUALS ======
     function updateDragVisual(){
-      clearDragVisual();
+      document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove());
       if(!draggedTile) return;
       const paneRect=document.getElementById('wordPane').getBoundingClientRect();
 
@@ -569,8 +654,6 @@
     // ====== DRAWER TAB SWITCHING ======
     function switchDrawer(drawerName){
       activeDrawer = drawerName;
-
-      // update tab active states
       document.querySelectorAll('.drawer-tab').forEach(tab => {
         if(tab.dataset.drawer === drawerName){
           tab.classList.add('active');
@@ -578,16 +661,12 @@
           tab.classList.remove('active');
         }
       });
-
-      // render the new drawer
       renderActiveDrawer();
     }
 
     // ====== BOOT ======
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
     document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane(); });
-
-    // setup drawer tab listeners
     document.querySelectorAll('.drawer-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         e.preventDefault();
