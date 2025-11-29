@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board (Fix V3)</title>
+  <title>Reading Tile Board (Variable Fix)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -146,7 +146,7 @@
 
   <script>
     // --- GLOBAL DATA STORE ---
-    // Renamed to 'boardState' to prevent any possible shadowing or reset bugs
+    // We renamed this from 'tiles' to 'boardState' to stop the disappearing bug
     let boardState = []; 
     
     const TILE_SIZE = 52;
@@ -289,6 +289,7 @@
       else if(activeDrawer==='roots') { list=purpleTiles; color='purple'; }
       
       if(activeDrawer === 'vowels') {
+         // Separate Simple from Magic E
          const simple = list.filter(t => !t.includes('_'));
          const magic = list.filter(t => t.includes('_'));
          
@@ -343,7 +344,6 @@
           el.style.fontSize=getFontSize(tile.text);
         }
 
-        // Safety for NaN coordinates
         const xPos = isNaN(tile.x) ? 10 : tile.x;
         const yPos = isNaN(tile.y) ? 10 : tile.y;
         
