@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board (Layout Fixed)</title>
+  <title>Reading Tile Board (Fix V3)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -100,10 +100,8 @@
 
     #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-y:auto;display:flex;flex-direction:column;align-items:center}
     
-    /* UPDATED: base-row is now a container for sub-rows if needed */
+    /* Layout: baseRow holds rows of tiles */
     #baseRow { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-bottom: 10px; }
-    
-    /* New class for the actual lines of tiles */
     .tray-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; width: 100%; }
 
     @media screen and (max-width: 1440px) { .hint{font-size:16px} #controls{top:6px;left:6px} }
@@ -148,8 +146,8 @@
 
   <script>
     // --- GLOBAL DATA STORE ---
-    // Ensuring this is declared clearly at the top
-    let tiles = []; 
+    // Renamed to 'boardState' to prevent any possible shadowing or reset bugs
+    let boardState = []; 
     
     const TILE_SIZE = 52;
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
@@ -181,7 +179,7 @@
     let currentUtterance = null;
 
     // ====== DOM HELPERS ======
-    function isMagicE(text) { return text.includes('_'); }
+    function isMagicE(text) { return text && text.includes('_'); }
 
     function getTileInnerHtml(text) {
       if(isMagicE(text)) {
@@ -216,8 +214,8 @@
     }
 
     function recomputeGroupsAround(rowY){
-      // Robust filter to avoid crashes on bad data
-      const row=tiles.filter(t=>sameRowY(t.y,rowY) && !isNaN(t.x)).sort((a,b)=>a.x-b.x);
+      // Filter safely using boardState
+      const row=boardState.filter(t=>sameRowY(t.y,rowY) && !isNaN(t.x)).sort((a,b)=>a.x-b.x);
       let i=0;
       while(i<row.length){
         let j=i+1;
@@ -230,7 +228,7 @@
     }
 
     function getGroupChain(main){
-      const row=tiles.filter(t=>sameRowY(t.y,main.y)).sort((a,b)=>a.x-b.x);
+      const row=boardState.filter(t=>sameRowY(t.y,main.y)).sort((a,b)=>a.x-b.x);
       const idx=row.findIndex(t=>t.id===main.id); if(idx===-1) return [main];
       let L=idx; while(L-1>=0 && areFlush(row[L-1],row[L])) L--;
       let R=idx; while(R+1<row.length && areFlush(row[R],row[R+1])) R++;
@@ -290,19 +288,15 @@
       else if(activeDrawer==='prefixes') { list=orangeTiles; color='orange'; }
       else if(activeDrawer==='roots') { list=purpleTiles; color='purple'; }
       
-      // === LAYOUT UPDATE: Separate Magic E ===
       if(activeDrawer === 'vowels') {
-         // Separate standard vowels from Magic E (anything with '_')
          const simple = list.filter(t => !t.includes('_'));
          const magic = list.filter(t => t.includes('_'));
          
-         // Row 1: Simple Vowels
          const div1 = document.createElement('div');
          div1.className = 'tray-row'; 
          simple.forEach(txt => div1.appendChild(createTile(txt, color, 'tray')));
          baseRow.appendChild(div1);
          
-         // Row 2: Magic E (if any)
          if(magic.length > 0){
              const divider = document.createElement('div');
              divider.style.width='90%'; divider.style.height='1px'; 
@@ -315,7 +309,6 @@
              baseRow.appendChild(div2);
          }
       } else {
-         // Standard Single Row
          const div = document.createElement('div');
          div.className = 'tray-row';
          list.forEach(txt => div.appendChild(createTile(txt, color, 'tray')));
@@ -334,10 +327,10 @@
     function renderWordPane(){
       const wp=document.getElementById('wordPane');
       wp.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
-      // Only show hint if board is truly empty
-      wp.querySelector('.hint').style.display = tiles.length>0 ? 'none' : 'block';
+      // Check boardState length
+      wp.querySelector('.hint').style.display = boardState.length>0 ? 'none' : 'block';
 
-      tiles.forEach(tile=>{
+      boardState.forEach(tile=>{
         if(draggedGroup.find(t=>t.id===tile.id)) return;
         const el=document.createElement('div');
         
@@ -350,7 +343,11 @@
           el.style.fontSize=getFontSize(tile.text);
         }
 
-        el.style.left=tile.x+'px'; el.style.top=tile.y+'px';
+        // Safety for NaN coordinates
+        const xPos = isNaN(tile.x) ? 10 : tile.x;
+        const yPos = isNaN(tile.y) ? 10 : tile.y;
+        
+        el.style.left=xPos+'px'; el.style.top=yPos+'px';
         el.dataset.id=tile.id;
         el.addEventListener('pointerdown',(e)=>onPointerStart(e,tile.text,tile.color,tile.id));
         wp.appendChild(el);
@@ -359,7 +356,7 @@
 
     // ====== PREDICTION & GHOSTS ======
     function findSeamNear(dropX, dropY){
-      const row=tiles.filter(t=>sameRowY(t.y, dropY)).sort((a,b)=>a.x-b.x);
+      const row=boardState.filter(t=>sameRowY(t.y, dropY)).sort((a,b)=>a.x-b.x);
       for(let i=0;i<row.length-1;i++){
         const L=row[i], R=row[i+1];
         if(!areFlush(L,R)) continue;
@@ -373,7 +370,7 @@
       const candidates=[];
       const dL=dropX, dR=dropX+TILE_SIZE, dT=dropY, dB=dropY+TILE_SIZE; 
       
-      for(const t of tiles){
+      for(const t of boardState){
         if(t.id===excludeId) continue;
         const width = getTileWidth(t);
         const tL=t.x, tR=t.x+width, tT=t.y, tB=t.y+TILE_SIZE;
@@ -464,7 +461,7 @@
     }
 
     function speakGroup(sourceId){
-      const tile = tiles.find(t => t.id == sourceId);
+      const tile = boardState.find(t => t.id == sourceId);
       if(!tile) return;
       const chain = getGroupChain(tile);
       const word = chain.map(t => t.text.replace('_','')).join('');
@@ -476,8 +473,8 @@
     }
 
     function speakAllBoard(){
-      if(tiles.length === 0) { alert("Drag some tiles to the board first!"); return; }
-      const sorted = [...tiles].sort((a,b) => {
+      if(boardState.length === 0) { alert("Drag some tiles to the board first!"); return; }
+      const sorted = [...boardState].sort((a,b) => {
          if(!sameRowY(a.y, b.y)) return a.y - b.y;
          return a.x - b.x;
       });
@@ -543,7 +540,7 @@
         draggedTile={ text:g.text, color:g.color, x:startX, y:startY, sourceType:'tray', startX, startY };
         draggedGroup=[]; dragStartRowY=null;
       } else {
-        const paneTile=tiles.find(t=>t.id===g.source); if(!paneTile) return;
+        const paneTile=boardState.find(t=>t.id===g.source); if(!paneTile) return;
         const chain=getGroupChain(paneTile);
         const idx=chain.findIndex(t=>t.id===paneTile.id);
         draggedGroup = (Math.abs(dx)>=Math.abs(dy)) ? (dx<0 ? chain.slice(0,idx+1) : chain.slice(idx)) : [paneTile];
@@ -578,8 +575,8 @@
              insertAtSeam(draggedTile, target.seam); 
            }
            else {
-             // SAFE ADDITION: Ensure we simply push to array
-             tiles.push({ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:target.x, y:target.y, groupId:(target.tile?target.tile.groupId||target.tile.id:null) });
+             // Append to boardState
+             boardState.push({ id:Date.now()+Math.random(), text:draggedTile.text, color:draggedTile.color, x:target.x, y:target.y, groupId:(target.tile?target.tile.groupId||target.tile.id:null) });
              recomputeGroupsAround(target.y);
            }
         } else {
@@ -589,14 +586,14 @@
            const mainDropY=e.clientY - r.top - (draggedTile.startY - main.y);
            if(draggedGroup.length===1 && findSeamNear(dropX,dropY)){
              const seam=findSeamNear(dropX,dropY);
-             tiles=tiles.filter(t=>t.id!==draggedGroup[0].id);
+             boardState=boardState.filter(t=>t.id!==draggedGroup[0].id);
              if(dragStartRowY!==null) recomputeGroupsAround(draggedGroup[0].y);
              insertAtSeam(draggedGroup[0], seam);
            } else {
              const target = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
              const dx=target.x - mainDropX, dy=target.y - mainDropY;
              const gid=(target.type==='snap')?(target.tile.groupId||target.tile.id):null;
-             tiles=tiles.map(t=>{
+             boardState=boardState.map(t=>{
                if(!draggedGroup.some(dt=>dt.id===t.id)) return t;
                const relX=t.x - main.x, relY=t.y - main.y;
                return { ...t, x:target.x+relX, y:target.y+relY, groupId:gid };
@@ -606,10 +603,10 @@
            }
         }
       } else if(draggedTile.sourceType==='pane'){
-        // Dragged off board - remove
+        // Dragged off board - remove from boardState
         const ids=new Set(draggedGroup.map(t=>t.id));
         const oy=draggedGroup[0].y;
-        tiles=tiles.filter(t=>!ids.has(t.id));
+        boardState=boardState.filter(t=>!ids.has(t.id));
         recomputeGroupsAround(oy);
       }
       draggedTile=null; draggedGroup=[]; dragStartRowY=null; clearDragVisual(); renderWordPane();
@@ -617,10 +614,10 @@
 
     function insertAtSeam(data, seam){
       const shiftAmount = isMagicE(data.text) ? 156 : TILE_SIZE;
-      const rightSide=tiles.filter(t=>sameRowY(t.y,seam.rowY) && t.x>=seam.right.x).sort((a,b)=>a.x-b.x);
+      const rightSide=boardState.filter(t=>sameRowY(t.y,seam.rowY) && t.x>=seam.right.x).sort((a,b)=>a.x-b.x);
       rightSide.forEach(t=>t.x+=shiftAmount);
       
-      tiles.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:seam.right.x-shiftAmount, y:seam.rowY, groupId:null });
+      boardState.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:seam.right.x-shiftAmount, y:seam.rowY, groupId:null });
       recomputeGroupsAround(seam.rowY);
     }
 
@@ -673,7 +670,7 @@
 
     // ====== BOOT ======
     document.getElementById('lessonSelect').addEventListener('change', renderTray);
-    document.getElementById('resetButton').addEventListener('click', ()=>{ tiles=[]; draggedTile=null; renderWordPane(); });
+    document.getElementById('resetButton').addEventListener('click', ()=>{ boardState=[]; draggedTile=null; renderWordPane(); });
     document.getElementById('speakButton').addEventListener('click', speakAllBoard);
     document.querySelectorAll('.drawer-tab').forEach(tab => {
       tab.addEventListener('click', (e) => { e.preventDefault(); switchDrawer(tab.dataset.drawer); });
