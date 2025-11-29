@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board (Magic E Test)</title>
+  <title>Reading Tile Board (Magic E V2)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -59,10 +59,10 @@
 
     .magic-e-carrot {
       position: absolute;
-      bottom: -18px; /* Hangs below the tile */
+      bottom: -28px; /* Pushed further down for deeper dip */
       left: 0;
       width: 100%;
-      height: 25px;
+      height: 35px; /* Taller container for deeper dip */
       pointer-events: none;
       z-index: 1;
     }
@@ -111,8 +111,8 @@
       
       <div class="tile magic-e" style="top: 150px; left: 150px;">
         <div class="magic-e-part">a</div>
-        <svg class="magic-e-carrot" viewBox="0 0 156 25">
-          <path d="M 26 0 L 78 20 L 130 0" />
+        <svg class="magic-e-carrot" viewBox="0 0 156 35">
+          <path d="M 32 0 L 78 30 L 124 0" />
         </svg>
         <div class="magic-e-part">e</div>
       </div>
