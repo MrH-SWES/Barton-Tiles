@@ -614,10 +614,11 @@
 
     function insertAtSeam(data, seam){
       const shiftAmount = isMagicE(data.text) ? 156 : TILE_SIZE;
+      const insertX = seam.seamX; // Capture the seam position BEFORE shifting
       const rightSide=boardState.filter(t=>sameRowY(t.y,seam.rowY) && t.x>=seam.right.x).sort((a,b)=>a.x-b.x);
       rightSide.forEach(t=>t.x+=shiftAmount);
       
-      boardState.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:seam.right.x-shiftAmount, y:seam.rowY, groupId:null });
+      boardState.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:insertX, y:seam.rowY, groupId:null });
       recomputeGroupsAround(seam.rowY);
     }
 
@@ -666,6 +667,10 @@
         g.dataset.dragging='true';
         document.body.appendChild(g);
       }
+    }
+
+    function clearDragVisual(){
+      document.querySelectorAll('[data-dragging="true"]').forEach(el=>el.remove());
     }
 
     // ====== BOOT ======
