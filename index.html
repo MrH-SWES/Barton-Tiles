@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board (Fixed Drag)</title>
+  <title>Reading Tile Board (Magic E Test)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -18,8 +18,7 @@
 
     #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
-    .sub-hint{display:block;font-size:14px;margin-top:8px;opacity:0.7}
-
+    
     .tile{width:52px;height:52px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
     .tile:active{cursor:grabbing}
     .tile.blue{background:#60a5fa}.tile.yellow{background:#fbbf24}.tile.red{background:#f87171}.tile.green{background:#4ade80}.tile.orange{background:#fb923c}.tile.purple{background:#a78bfa}
@@ -27,15 +26,59 @@
     .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
     .word-pane-tile{position:absolute}
 
-    /* Ghost Tile Style */
-    .ghost-tile {
-      position: absolute;
-      width: 52px; height: 52px;
-      border: 2px dashed #6b7280;
+    /* --- NEW MAGIC E STYLES START HERE --- */
+    .tile.magic-e {
+      /* Width = 52px (Left) + 52px (Gap) + 52px (Right) = 156px */
+      width: 156px; 
+      height: 52px;
+      display: flex;
+      justify-content: space-between; /* Pushes letters to edges */
+      align-items: center;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      position: absolute; /* It sits on the board like other tiles */
+      z-index: 10;
+    }
+
+    .magic-e-part {
+      width: 52px;
+      height: 52px;
+      border: 2px solid #374151;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.3);
-      z-index: 5;
+      background: #fbbf24; /* Yellow Vowel Color */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 22px;
+      box-shadow: 0 2px 4px rgba(0,0,0,.25);
+      z-index: 2; /* Sit on top of the connector lines */
+    }
+
+    .magic-e-carrot {
+      position: absolute;
+      bottom: -18px; /* Hangs below the tile */
+      left: 0;
+      width: 100%;
+      height: 25px;
       pointer-events: none;
+      z-index: 1;
+    }
+    .magic-e-carrot path {
+      fill: none;
+      stroke: #6b7280; 
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    /* --- NEW MAGIC E STYLES END HERE --- */
+
+    .ghost-tile {
+      position: absolute; width: 52px; height: 52px;
+      border: 2px dashed #6b7280; border-radius: 6px;
+      background: rgba(255, 255, 255, 0.3); z-index: 5; pointer-events: none;
     }
 
     #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
@@ -65,6 +108,14 @@
   <div id="app">
     <div id="wordPane">
       <div class="hint">Drag tiles here to build words.</div>
+      
+      <div class="tile magic-e" style="top: 150px; left: 150px;">
+        <div class="magic-e-part">a</div>
+        <svg class="magic-e-carrot" viewBox="0 0 156 25">
+          <path d="M 26 0 L 78 20 L 130 0" />
+        </svg>
+        <div class="magic-e-part">e</div>
+      </div>
       <div id="controls">
         <select id="lessonSelect" class="btn secondary">
           <option value="2">Book 2</option><option value="3">Book 3</option><option value="4">Book 4</option>
@@ -215,8 +266,10 @@
 
     function renderWordPane(){
       const wp=document.getElementById('wordPane');
+      // Keep the fake magic e visible by only removing .word-pane-tile
       wp.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
-      wp.querySelector('.hint').style.display = tiles.length>0 ? 'none' : 'block';
+      // The hint logic needs to ignore our fake tile for now
+      // wp.querySelector('.hint').style.display = tiles.length>0 ? 'none' : 'block';
 
       tiles.forEach(tile=>{
         if(draggedGroup.find(t=>t.id===tile.id)) return;
@@ -386,11 +439,11 @@
           if(gesture.source !== 'tray' && gesture.source !== 'alphabet'){
              const now = Date.now();
              if(lastTapId === gesture.source && (now - lastTapTime) < 500){
-                speakGroup(gesture.source);
-                lastTapId = null;
+               speakGroup(gesture.source);
+               lastTapId = null;
              } else {
-                lastTapId = gesture.source;
-                lastTapTime = now;
+               lastTapId = gesture.source;
+               lastTapTime = now;
              }
           }
           cleanup();
