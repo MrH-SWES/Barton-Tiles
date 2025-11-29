@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board (Magic E V2)</title>
+  <title>Reading Tile Board (Magic E Functional V1)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -19,6 +19,7 @@
     #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
     
+    /* Standard Tile */
     .tile{width:52px;height:52px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
     .tile:active{cursor:grabbing}
     .tile.blue{background:#60a5fa}.tile.yellow{background:#fbbf24}.tile.red{background:#f87171}.tile.green{background:#4ade80}.tile.orange{background:#fb923c}.tile.purple{background:#a78bfa}
@@ -26,43 +27,44 @@
     .tile.dragging{position:fixed;z-index:1000;opacity:.95;pointer-events:none;will-change:transform;left:0;top:0}
     .word-pane-tile{position:absolute}
 
-    /* --- NEW MAGIC E STYLES START HERE --- */
+    /* --- MAGIC E STYLES --- */
     .tile.magic-e {
-      /* Width = 52px (Left) + 52px (Gap) + 52px (Right) = 156px */
       width: 156px; 
       height: 52px;
       display: flex;
-      justify-content: space-between; /* Pushes letters to edges */
+      justify-content: space-between; 
       align-items: center;
       background: transparent;
       border: none;
       box-shadow: none;
       padding: 0;
-      position: absolute; /* It sits on the board like other tiles */
+      position: absolute;
       z-index: 10;
     }
-
+    /* When in tray or dragging, we need relative positioning context, specific overrides */
+    .tile.magic-e.in-tray { position: relative; margin: 0 4px; }
+    
     .magic-e-part {
       width: 52px;
       height: 52px;
       border: 2px solid #374151;
       border-radius: 6px;
-      background: #fbbf24; /* Yellow Vowel Color */
+      background: #fbbf24;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
       font-size: 22px;
       box-shadow: 0 2px 4px rgba(0,0,0,.25);
-      z-index: 2; /* Sit on top of the connector lines */
+      z-index: 2;
     }
 
     .magic-e-carrot {
       position: absolute;
-      bottom: -28px; /* Pushed further down for deeper dip */
+      bottom: -28px;
       left: 0;
       width: 100%;
-      height: 35px; /* Taller container for deeper dip */
+      height: 35px;
       pointer-events: none;
       z-index: 1;
     }
@@ -73,13 +75,14 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
-    /* --- NEW MAGIC E STYLES END HERE --- */
 
     .ghost-tile {
       position: absolute; width: 52px; height: 52px;
       border: 2px dashed #6b7280; border-radius: 6px;
       background: rgba(255, 255, 255, 0.3); z-index: 5; pointer-events: none;
     }
+    /* Ghost for magic E needs to be wide */
+    .ghost-tile.ghost-magic { width: 156px; border: 2px dashed #6b7280; background: rgba(251, 191, 36, 0.2); }
 
     #controls{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10}
     .btn{background:#111827;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 2px 6px var(--shadow)}
@@ -108,14 +111,6 @@
   <div id="app">
     <div id="wordPane">
       <div class="hint">Drag tiles here to build words.</div>
-      
-      <div class="tile magic-e" style="top: 150px; left: 150px;">
-        <div class="magic-e-part">a</div>
-        <svg class="magic-e-carrot" viewBox="0 0 156 35">
-          <path d="M 32 0 L 78 30 L 124 0" />
-        </svg>
-        <div class="magic-e-part">e</div>
-      </div>
       <div id="controls">
         <select id="lessonSelect" class="btn secondary">
           <option value="2">Book 2</option><option value="3">Book 3</option><option value="4">Book 4</option>
@@ -156,10 +151,11 @@
     function dragThresholdFor(e){ return (e && e.pointerType === 'touch') ? 12 : 6; }
 
     // ====== LEVEL DATA ======
+    // Added magicE arrays to Book 4
     const B_LEVELS = {
       2: { blue:["b","c","d","f","g","h","j","k","l","m","n","p","qu","r","s","t","v","w","x","y","z","ch","ck","sh","th","wh"], yellow:["a","e","i","o","u"] },
       3: { red:["all","ang","ing","ong","ung","ank","ink","onk","unk","oll","old","olt","ost","ild","ind"] },
-      4: { yellow:["ai","ay","ee","oa","oe","ue","ew","ow"] },
+      4: { yellow:["ai","ay","ee","oa","oe","ue","ew","ow"], magicE:["a_e","i_e","o_e","u_e"] },
       5: { green:["s","es","ed","ing","er","est","ist","y","en","ish","ity","able","tion","sion"], orange:["dis","in","un","non","mis","sub","re","pre","inter","mid","over","up"] },
       6: { blue:["ph"], yellow:["y"], red:["ture"], green:["ible","ble","cle","dle","fle","gle","kle","ple","tle","zle"], orange:["ate","ite","ine","ice","ace","age"] },
       7: { yellow:["ar","or","er","ir","ur","ear"], green:["ary","ery","ory"] },
@@ -177,6 +173,24 @@
     let lastTapId = null, lastTapTime = 0;
     let currentUtterance = null;
 
+    // ====== DOM HELPERS ======
+    function isMagicE(text) { return text.includes('_'); }
+
+    // Returns the HTML structure for either a normal tile or magic E
+    function getTileInnerHtml(text) {
+      if(isMagicE(text)) {
+        const vowel = text[0];
+        return `
+          <div class="magic-e-part">${vowel}</div>
+          <svg class="magic-e-carrot" viewBox="0 0 156 35">
+            <path d="M 32 0 L 78 30 L 124 0" />
+          </svg>
+          <div class="magic-e-part">e</div>
+        `;
+      }
+      return text;
+    }
+
     // ====== UTIL ======
     function getFontSize(text){
       if(text.length<=2) return '22px';
@@ -187,7 +201,14 @@
     }
     function getUniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=> (a.length===b.length ? a.localeCompare(b) : a.length-b.length)); }
     function sameRowY(y1,y2){ return Math.abs(y1-y2) < TILE_SIZE/2; }
-    function areFlush(a,b,tol=2){ return Math.abs(a.x + TILE_SIZE - b.x) <= tol; }
+    
+    // For flush checks, we need to know width. 
+    function getTileWidth(t) { return isMagicE(t.text) ? 156 : TILE_SIZE; }
+
+    function areFlush(a,b,tol=2){ 
+      const widthA = getTileWidth(a);
+      return Math.abs(a.x + widthA - b.x) <= tol; 
+    }
 
     function recomputeGroupsAround(rowY){
       const row=tiles.filter(t=>sameRowY(t.y,rowY)).sort((a,b)=>a.x-b.x);
@@ -213,9 +234,16 @@
     // ====== DOM & RENDER ======
     function createTile(text,color,source){
       const el=document.createElement('div');
-      el.className=`tile ${color}`;
-      el.textContent=text;
-      el.style.fontSize=getFontSize(text);
+      
+      if(isMagicE(text)){
+        el.className = `tile magic-e ${source==='tray' ? 'in-tray' : ''}`;
+        el.innerHTML = getTileInnerHtml(text);
+      } else {
+        el.className=`tile ${color}`;
+        el.textContent=text;
+        el.style.fontSize=getFontSize(text);
+      }
+      
       el.addEventListener('pointerdown',(e)=>onPointerStart(e,text,color,source));
       return el;
     }
@@ -229,6 +257,7 @@
         const L=B_LEVELS[i]; if(!L) continue;
         if(L.blue)   allBlue.push(...L.blue);
         if(L.yellow) allYellow.push(...L.yellow);
+        if(L.magicE) allYellow.push(...L.magicE); // Add magic E to vowels
         if(L.red)    redTiles.push(...L.red);
         if(L.green)  greenTiles.push(...L.green);
         if(L.orange) orangeTiles.push(...L.orange);
@@ -266,17 +295,22 @@
 
     function renderWordPane(){
       const wp=document.getElementById('wordPane');
-      // Keep the fake magic e visible by only removing .word-pane-tile
       wp.querySelectorAll('.word-pane-tile').forEach(el=>el.remove());
-      // The hint logic needs to ignore our fake tile for now
-      // wp.querySelector('.hint').style.display = tiles.length>0 ? 'none' : 'block';
+      wp.querySelector('.hint').style.display = tiles.length>0 ? 'none' : 'block';
 
       tiles.forEach(tile=>{
         if(draggedGroup.find(t=>t.id===tile.id)) return;
         const el=document.createElement('div');
-        el.className=`tile ${tile.color} word-pane-tile`;
-        el.textContent=tile.text;
-        el.style.fontSize=getFontSize(tile.text);
+        
+        if(isMagicE(tile.text)){
+          el.className = 'tile magic-e word-pane-tile';
+          el.innerHTML = getTileInnerHtml(tile.text);
+        } else {
+          el.className=`tile ${tile.color} word-pane-tile`;
+          el.textContent=tile.text;
+          el.style.fontSize=getFontSize(tile.text);
+        }
+
         el.style.left=tile.x+'px'; el.style.top=tile.y+'px';
         el.dataset.id=tile.id;
         el.addEventListener('pointerdown',(e)=>onPointerStart(e,tile.text,tile.color,tile.id));
@@ -290,7 +324,7 @@
       for(let i=0;i<row.length-1;i++){
         const L=row[i], R=row[i+1];
         if(!areFlush(L,R)) continue;
-        const seamX=L.x + TILE_SIZE;
+        const seamX=L.x + getTileWidth(L); // Use helper for variable width
         if(Math.abs(dropX - seamX) <= SEAM_CAPTURE) return { left:L, right:R, seamX, rowY:L.y };
       }
       return null;
@@ -298,15 +332,21 @@
 
     function findNearbyTiles(dropX, dropY, excludeId){
       const candidates=[];
-      const dL=dropX, dR=dropX+TILE_SIZE, dT=dropY, dB=dropY+TILE_SIZE;
+      // For calculation, assume standard height for now
+      const dL=dropX, dR=dropX+TILE_SIZE, dT=dropY, dB=dropY+TILE_SIZE; 
+      
       for(const t of tiles){
         if(t.id===excludeId) continue;
-        const tL=t.x, tR=t.x+TILE_SIZE, tT=t.y, tB=t.y+TILE_SIZE;
+        const width = getTileWidth(t);
+        const tL=t.x, tR=t.x+width, tT=t.y, tB=t.y+TILE_SIZE;
+        
         if(Math.min(dB,tB)-Math.max(dT,tT) < MIN_VERTICAL_OVERLAP) continue;
-        if(Math.max(dL, tL+TILE_SIZE/2) < Math.min(dL+TILE_SIZE/2, tR))
+        
+        // Check overlap for snap
+        if(Math.max(dL, tL+width/2) < Math.min(dL+TILE_SIZE/2, tR))
           candidates.push({ tile:t, edge:'right', snapX:tR, snapY:t.y });
-        else if(Math.max(dL+TILE_SIZE/2, tL) < Math.min(dR, tL+TILE_SIZE/2))
-          candidates.push({ tile:t, edge:'left', snapX:tL-TILE_SIZE, snapY:t.y });
+        else if(Math.max(dL+TILE_SIZE/2, tL) < Math.min(dR, tL+width/2))
+          candidates.push({ tile:t, edge:'left', snapX:tL-TILE_SIZE, snapY:t.y }); // Careful with snapping left of Magic E
       }
       candidates.sort((a,b)=> Math.abs(a.snapY-dropY)-Math.abs(b.snapY-dropY));
       return candidates;
@@ -329,7 +369,7 @@
       
       let rawDropX = mouseX - paneRect.left - dragOffset.x;
       let rawDropY = mouseY - paneRect.top - dragOffset.y;
-      let prediction, offsetX = 0, offsetY = 0;
+      let prediction;
 
       if(draggedTile.sourceType === 'tray'){
         prediction = calculateDropTarget(rawDropX, rawDropY, null);
@@ -338,22 +378,24 @@
         const mainDropX = mouseX - paneRect.left - (draggedTile.startX - main.x);
         const mainDropY = mouseY - paneRect.top - (draggedTile.startY - main.y);
         prediction = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
-        offsetX = prediction.x - mainDropX;
-        offsetY = prediction.y - mainDropY;
       }
 
       if(draggedGroup.length > 0){
         draggedGroup.forEach(t => {
            const main = draggedGroup.find(dt => dt.id === draggedTile.id);
            const ghost = document.createElement('div');
-           ghost.className = 'ghost-tile';
+           if(isMagicE(t.text)) ghost.className = 'ghost-tile ghost-magic';
+           else ghost.className = 'ghost-tile';
+           
            ghost.style.left = (prediction.x + (t.x - main.x)) + 'px';
            ghost.style.top = (prediction.y + (t.y - main.y)) + 'px';
            wordPane.appendChild(ghost);
         });
       } else {
         const ghost = document.createElement('div');
-        ghost.className = 'ghost-tile';
+        if(isMagicE(draggedTile.text)) ghost.className = 'ghost-tile ghost-magic';
+        else ghost.className = 'ghost-tile';
+        
         ghost.style.left = prediction.x + 'px';
         ghost.style.top = prediction.y + 'px';
         wordPane.appendChild(ghost);
@@ -375,7 +417,10 @@
       window.speechSynthesis.cancel();
 
       setTimeout(() => {
-        currentUtterance = new SpeechSynthesisUtterance(text);
+        // Clean text for speech (replace underscores for magic e if needed, though most engines handle it poorly)
+        // Better: convert a_e to [a] [e] sound? For now, standard read.
+        let toSpeak = text.replace('_', ' '); 
+        currentUtterance = new SpeechSynthesisUtterance(toSpeak);
         currentUtterance.rate = 0.8; 
         currentUtterance.onend = () => { btn.textContent = originalText; btn.classList.remove('speaking'); };
         currentUtterance.onerror = (e) => { console.error("Speech error:", e); btn.textContent = originalText; btn.classList.remove('speaking'); };
@@ -387,7 +432,8 @@
       const tile = tiles.find(t => t.id == sourceId);
       if(!tile) return;
       const chain = getGroupChain(tile);
-      const word = chain.map(t => t.text).join('');
+      // Logic for speech on complex groups
+      const word = chain.map(t => t.text.replace('_','')).join('');
       speakText(word);
       chain.forEach(t => {
         const el = document.querySelector(`.word-pane-tile[data-id="${t.id}"]`);
@@ -404,10 +450,10 @@
       const words = [];
       let i=0;
       while(i < sorted.length){
-        let wordText = sorted[i].text;
+        let wordText = sorted[i].text.replace('_','');
         let j=i+1;
         while(j < sorted.length && sameRowY(sorted[j-1].y, sorted[j].y) && areFlush(sorted[j-1], sorted[j])){
-          wordText += sorted[j].text;
+          wordText += sorted[j].text.replace('_','');
           j++;
         }
         words.push(wordText);
@@ -529,9 +575,19 @@
     }
 
     function insertAtSeam(data, seam){
+      // For insertion, we need to know how much to shift.
+      const shiftAmount = isMagicE(data.text) ? 156 : TILE_SIZE;
+      
       const rightSide=tiles.filter(t=>sameRowY(t.y,seam.rowY) && t.x>=seam.right.x).sort((a,b)=>a.x-b.x);
-      rightSide.forEach(t=>t.x+=TILE_SIZE);
-      tiles.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:seam.right.x-TILE_SIZE, y:seam.rowY, groupId:null });
+      rightSide.forEach(t=>t.x+=shiftAmount);
+      
+      // Calculate insertion X. If the seam is normal, it's at seam.right.x - standard size.
+      // But if we are inserting a magic E, we need more space.
+      // The seam logic defines seamX as the LEFT edge of the gap.
+      // seam.right is the tile AFTER the gap.
+      // So new tile x = seam.right.x - shiftAmount
+      
+      tiles.push({ id:Date.now()+Math.random(), text:data.text, color:data.color, x:seam.right.x-shiftAmount, y:seam.rowY, groupId:null });
       recomputeGroupsAround(seam.rowY);
     }
 
@@ -540,28 +596,40 @@
       if(!draggedTile) return;
       const paneRect=document.getElementById('wordPane').getBoundingClientRect();
 
-      // --- FIX: USE SEPARATE LOGIC FOR TRAY VS GROUP TO PREVENT DISAPPEARANCE ---
       if(draggedGroup.length > 0){
-        // Dragging existing group: Move relative to original positions
+        // Dragging existing group
         const dx = draggedTile.x - draggedTile.startX;
         const dy = draggedTile.y - draggedTile.startY;
         draggedGroup.forEach(t=>{
           const g=document.createElement('div');
-          g.className=`tile ${t.color} dragging`;
-          g.textContent=t.text;
-          g.style.fontSize=getFontSize(t.text);
+          
+          if(isMagicE(t.text)){
+            g.className=`tile magic-e dragging`;
+            g.innerHTML = getTileInnerHtml(t.text);
+          } else {
+            g.className=`tile ${t.color} dragging`;
+            g.textContent=t.text;
+            g.style.fontSize=getFontSize(t.text);
+          }
+          
           const gx=t.x + dx + paneRect.left, gy=t.y + dy + paneRect.top;
           g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
           g.dataset.dragging='true';
           document.body.appendChild(g);
         });
       } else {
-        // Dragging from Tray: Move absolute to mouse
+        // Dragging from Tray
         const g=document.createElement('div');
-        g.className=`tile ${draggedTile.color} dragging`;
-        g.textContent=draggedTile.text;
-        g.style.fontSize=getFontSize(draggedTile.text);
-        // Correct math: Mouse ClientX - Offset inside tile
+        
+        if(isMagicE(draggedTile.text)){
+            g.className=`tile magic-e dragging`;
+            g.innerHTML = getTileInnerHtml(draggedTile.text);
+        } else {
+            g.className=`tile ${draggedTile.color} dragging`;
+            g.textContent=draggedTile.text;
+            g.style.fontSize=getFontSize(draggedTile.text);
+        }
+
         const gx=draggedTile.x - dragOffset.x; 
         const gy=draggedTile.y - dragOffset.y;
         g.style.transform=`translate3d(${Math.round(gx)}px, ${Math.round(gy)}px, 0)`;
