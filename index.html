@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Reading Tile Board (Magic E Insertion)</title>
+  <title>Reading Tile Board (Sticky Magic E)</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
@@ -19,7 +19,6 @@
     #wordPane{position:absolute;inset:0 0 24vh 0;background:transparent;overflow:hidden}
     .hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#6b7280;font-size:17px;text-align:center;pointer-events:none}
     
-    /* Standard Tile */
     .tile{width:52px;height:52px;border:2px solid #374151;border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;box-shadow:0 2px 4px rgba(0,0,0,.25);flex-shrink:0;touch-action:none;background:white}
     .tile:active{cursor:grabbing}
     .tile.blue{background:#60a5fa}.tile.yellow{background:#fbbf24}.tile.red{background:#f87171}.tile.green{background:#4ade80}.tile.orange{background:#fb923c}.tile.purple{background:#a78bfa}
@@ -40,11 +39,9 @@
       padding: 0;
       position: absolute;
       z-index: 10;
-      /* Vital: Allow clicks to pass through the empty gap so we can click the tile inside */
-      pointer-events: none; 
+      pointer-events: none; /* Let clicks pass through gap */
     }
     
-    /* When in tray, we need it to catch clicks */
     .tile.magic-e.in-tray { position: relative; margin: 0 4px; pointer-events: auto; }
     
     .magic-e-part {
@@ -60,8 +57,7 @@
       font-size: 22px;
       box-shadow: 0 2px 4px rgba(0,0,0,.25);
       z-index: 2;
-      /* Re-enable clicks on the yellow blocks so we can drag the container */
-      pointer-events: auto; 
+      pointer-events: auto; /* Catch clicks on the yellow blocks */
     }
 
     .magic-e-carrot {
@@ -152,7 +148,7 @@
     let boardState = []; 
     
     const TILE_SIZE = 52;
-    const MAGIC_HOLE_OFFSET = 52; // The middle gap is at x + 52
+    const MAGIC_HOLE_OFFSET = 52; 
     const MIN_VERTICAL_OVERLAP = Math.floor(TILE_SIZE * 0.33);
     const TAP_MAX_TIME_MS = 250, TAP_MAX_MOVE_PX = 6;
     const SEAM_CAPTURE = 22;
@@ -216,10 +212,11 @@
       return Math.abs(a.x + widthA - b.x) <= tol; 
     }
 
+    // Helper: Is 'inner' inside 'outer's hole?
     function isInside(inner, outer) {
-      // Check if inner tile is roughly inside the hole of the outer Magic E
       if(!isMagicE(outer.text)) return false;
       const holeX = outer.x + MAGIC_HOLE_OFFSET;
+      // Allow slight fuzziness (10px)
       return Math.abs(inner.x - holeX) < 10 && sameRowY(inner.y, outer.y);
     }
 
@@ -237,12 +234,13 @@
     }
 
     function getGroupChain(main){
-      // 1. If main is 'content' inside a Magic E, the 'real' main is the Magic E
+      // 1. Identify "Real Main"
+      // If 'main' is inside a Magic E, the 'real' main of this interaction is the Magic E container
       let realMain = main;
       const container = boardState.find(t => isInside(main, t));
       if(container) realMain = container;
 
-      // 2. Find standard horizontal chain
+      // 2. Find standard horizontal chain based on Real Main
       const row=boardState.filter(t=>sameRowY(t.y,realMain.y)).sort((a,b)=>a.x-b.x);
       const idx=row.findIndex(t=>t.id===realMain.id); if(idx===-1) return [realMain];
       
@@ -251,8 +249,8 @@
       
       const chain = row.slice(L,R+1);
       
-      // 3. For every tile in the chain, check if it contains a 'rider' (consonant)
-      // or if it IS a rider (though logic above handles that, we double check)
+      // 3. "Sticky" Logic:
+      // For every tile in the chain, if it's a Magic E, grab its contents.
       const extendedChain = new Set(chain);
       chain.forEach(t => {
         if(isMagicE(t.text)) {
@@ -592,7 +590,10 @@
         draggedGroup=[]; dragStartRowY=null;
       } else {
         const paneTile=boardState.find(t=>t.id===g.source); if(!paneTile) return;
+        
+        // Use updated sticky group logic
         const chain=getGroupChain(paneTile);
+        
         const idx=chain.findIndex(t=>t.id===paneTile.id);
         draggedGroup = (Math.abs(dx)>=Math.abs(dy)) ? (dx<0 ? chain.slice(0,idx+1) : chain.slice(idx)) : [paneTile];
         draggedTile={ ...paneTile, x:startX, y:startY, sourceType:'pane', startX, startY };
@@ -635,6 +636,7 @@
            const main=draggedGroup.find(t=>t.id===draggedTile.id);
            const mainDropX=e.clientX - r.left - (draggedTile.startX - main.x);
            const mainDropY=e.clientY - r.top - (draggedTile.startY - main.y);
+           
            if(draggedGroup.length===1 && findSeamNear(dropX,dropY)){
              const seam=findSeamNear(dropX,dropY);
              boardState=boardState.filter(t=>t.id!==draggedGroup[0].id);
@@ -644,17 +646,20 @@
              const target = calculateDropTarget(mainDropX, mainDropY, draggedTile.id);
              const dx=target.x - mainDropX, dy=target.y - mainDropY;
              const gid=(target.type==='snap')?(target.tile.groupId||target.tile.id):null;
+             
+             // Update all tiles in the dragged group
              boardState=boardState.map(t=>{
                if(!draggedGroup.some(dt=>dt.id===t.id)) return t;
                const relX=t.x - main.x, relY=t.y - main.y;
                return { ...t, x:target.x+relX, y:target.y+relY, groupId:gid };
              });
+             
              if(dragStartRowY!==null) recomputeGroupsAround(dragStartRowY);
              recomputeGroupsAround(target.y);
            }
         }
       } else if(draggedTile.sourceType==='pane'){
-        // Dragged off board - remove from boardState
+        // Dragged off board
         const ids=new Set(draggedGroup.map(t=>t.id));
         const oy=draggedGroup[0].y;
         boardState=boardState.filter(t=>!ids.has(t.id));
