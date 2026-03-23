@@ -53,8 +53,8 @@
     .drawer-tab.active{background:var(--tray);border-bottom:2px solid var(--tray)}
     .drawer-tab.blue-text{color:#60a5fa}.drawer-tab.yellow-text{color:#fbbf24}.drawer-tab.red-text{color:#f87171}.drawer-tab.green-text{color:#4ade80}.drawer-tab.orange-text{color:#fb923c}.drawer-tab.purple-text{color:#a78bfa}
 
-    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center}
-    .base-row{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;width:100%}
+    #baseTiles{flex:1;background:var(--tray);padding:4px 6px;pointer-events:auto;box-shadow:0 -4px 12px rgba(0,0,0,.3);overflow-x:auto;overflow-y:hidden;display:flex;align-items:center}
+    .base-row{display:flex;flex-wrap:nowrap;gap:3px;justify-content:center;width:100%}
 
     @media screen and (max-width: 1440px) { .hint{font-size:16px} #controls{top:6px;left:6px} }
     @media screen and (max-width: 1366px) { #bottomDock{height:22vh} #wordPane{inset:0 0 22vh 0} #alphabetSection{bottom:22vh;padding:3px 5px;gap:2px} .alphabet-row{gap:2px} .drawer-tab{padding:5px 10px;font-size:11px} #baseTiles{padding:4px 5px} .base-row{gap:2px} .hint{font-size:15px} }
